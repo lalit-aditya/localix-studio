@@ -32,7 +32,7 @@ test('an agent whose terminal exited leaves the roster instead of staying live',
   await service.roster({}, 's')
   expect(service.live.get('t1')?.closed).toBeFalsy()
   expect(service.live.get('t2')?.closed).toBe(true)
-  service.shutdown()
+  await service.shutdown()
 })
 
 test('a waited pane that exits ends the wait on its exit event, not a timer', async () => {
@@ -64,7 +64,7 @@ test('a waited pane that exits ends the wait on its exit event, not a timer', as
   const outcome = await waiting
   expect(outcome.satisfied).toBe(true)
   expect(service.live.get('t1')?.closed).toBe(true)
-  service.shutdown()
+  await service.shutdown()
 })
 
 test('the turn reading is aged by the log as it is now, not as it was first found', async () => {
@@ -97,5 +97,5 @@ test('the turn reading is aged by the log as it is now, not as it was first foun
   await utimes(path, new Date(), new Date(1_800_000_000_000))
   await service.readTurn(service.live.get('t1')!)
   expect(seen).toEqual([1_800_000_000_000])
-  service.shutdown()
+  await service.shutdown()
 })

@@ -36,7 +36,7 @@ async function withTimers(
   try {
     await run({ service, internals, pending, delays, cleared })
   } finally {
-    service.shutdown()
+    void service.shutdown()
     timeout.mockRestore()
     clear.mockRestore()
   }
@@ -90,7 +90,7 @@ test('shutdown clears every pending correlation timer', async () => {
     internals.scheduleCorrelation('first')
     internals.scheduleCorrelation('second')
     expect(internals.timers.size).toBe(2)
-    service.shutdown()
+    await service.shutdown()
     expect(cleared).toEqual(pending.map(({ handle }) => handle))
     expect(internals.timers.size).toBe(0)
   })

@@ -80,7 +80,7 @@ async function withPoll(
   } finally {
     controller.abort()
     await waiting
-    service.shutdown()
+    void service.shutdown()
     interval.mockRestore()
     clear.mockRestore()
   }

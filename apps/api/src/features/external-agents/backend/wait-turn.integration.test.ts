@@ -107,7 +107,7 @@ describe('a wait consults the log before deciding it is already over', () => {
     expect(outcome.states[key]).toBe('working')
     // And the answer is a reading now, not a guess with a stated reason.
     expect(outcome.degraded).toEqual([])
-    service.shutdown()
+    await service.shutdown()
   })
 
   test('a turn that ends DURING the wait ends the wait', async () => {
@@ -128,7 +128,7 @@ describe('a wait consults the log before deciding it is already over', () => {
 
     expect(outcome.satisfied).toBe(true)
     expect(outcome.timedOut).toBe(false)
-    service.shutdown()
+    await service.shutdown()
   }, 20_000)
 
   test('a turn that ends during the wait is read from the log’s change, not a tick later', async () => {
@@ -149,7 +149,7 @@ describe('a wait consults the log before deciding it is already over', () => {
 
     expect(outcome.satisfied).toBe(true)
     expect(Date.now() - wroteAt).toBeLessThan(1_500)
-    service.shutdown()
+    await service.shutdown()
   }, 20_000)
 
   test('a wait finds the log once, not by listing the history on every tick', async () => {
@@ -167,7 +167,7 @@ describe('a wait consults the log before deciding it is already over', () => {
       expect(listing).toHaveBeenCalledTimes(1)
     } finally {
       listing.mockRestore()
-      service.shutdown()
+      await service.shutdown()
     }
   }, 20_000)
 
@@ -185,6 +185,6 @@ describe('a wait consults the log before deciding it is already over', () => {
     expect(outcome.satisfied).toBe(true)
     expect(outcome.timedOut).toBe(false)
     expect(Date.now() - started).toBeLessThan(2_000)
-    service.shutdown()
+    await service.shutdown()
   })
 })

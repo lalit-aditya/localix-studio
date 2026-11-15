@@ -105,7 +105,7 @@ test('discovered history continues in its recorded directory and never resumes m
     expect(missing.spawns).toEqual([])
   } finally {
     resume.mockRestore()
-    agents.shutdown()
+    await agents.shutdown()
   }
 })
 
@@ -166,7 +166,7 @@ test('native correlation saves identity on our session, ready for a later resume
     expect(remember).toHaveBeenCalledWith('user', 'our-chat', 'codex:pending-terminal-pty')
     expect(remember).toHaveBeenCalledWith('user', 'our-chat', 'codex:native-id')
   } finally {
-    agents.shutdown()
+    await agents.shutdown()
     remember.mockRestore()
   }
 })
