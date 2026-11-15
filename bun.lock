@@ -29,7 +29,7 @@
       },
       "dependencies": {
         "@hono/zod-validator": "^0.9.1",
-        "@localix-ai/flowdown": "^0.6.0",
+        "@localix-ai/flowdown": "^0.6.1",
         "@localixai/agent": "workspace:*",
         "@localixai/change-feed": "workspace:*",
         "@localixai/engine": "workspace:*",
@@ -88,7 +88,7 @@
         "@fontsource-variable/jetbrains-mono": "^5.3.0",
         "@fontsource/fragment-mono": "^5.3.0",
         "@iconify-icons/vscode-icons": "^2.0.19",
-        "@localix-ai/flowdown": "^0.6.0",
+        "@localix-ai/flowdown": "^0.6.1",
         "@localixai/agent": "workspace:*",
         "@localixai/api": "workspace:*",
         "@localixai/dataview": "workspace:*",
@@ -745,7 +745,7 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@localix-ai/flowdown": ["@localix-ai/flowdown@0.6.0", "", { "peerDependencies": { "highlight.js": "^11.0.0", "katex": ">=0.16.0", "react": "^18.2.0 || ^19.0.0" }, "optionalPeers": ["highlight.js", "katex", "react"] }, "sha512-YPQclwi//NG2LXhfpVKlZGwL+9bhp3nT03YAP/cImH3yCR4RShZhLwn3M4U+eZFgdBGyskR3uRRTt1URAXitmw=="],
+    "@localix-ai/flowdown": ["@localix-ai/flowdown@0.6.1", "", { "peerDependencies": { "highlight.js": "^11.0.0", "katex": ">=0.16.0", "react": "^18.2.0 || ^19.0.0" }, "optionalPeers": ["highlight.js", "katex", "react"] }, "sha512-IbxrOckEavG/5OJ55x2S9ZZEz//kPBg4TZQHL4UTFkF8uSkqsMzo1TKC9RfqasZRxvqJlf55GQORMhGy59Qpbg=="],
 
     "@localixai/agent": ["@localixai/agent@workspace:packages/agent"],
 
