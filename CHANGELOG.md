@@ -4,12 +4,35 @@ Localix is in beta: versions before 1.0 may change behavior between releases.
 
 ## Unreleased
 
+## v0.1.0-beta.29 — 2026-11-17
+
+Replies are drawn faster and closer to what the model meant, a project whose folder is gone no
+longer leaves you in a chat that can only fail, and a provider that duplicated another is gone.
+
 ### Changed
 
 - **A project whose folder is gone is removed**: when a project's folder was moved, renamed or
   deleted, Localix removes the project and its chats instead of letting you type into a chat that
   can only fail with "an unexpected error". An open chat closes, and opening the same folder again
   brings the project and its chats back.
+- **Long replies stay fast while they arrive**: a code block, table, list or quote that is still
+  being written is redrawn from its last part instead of from its start, and a reply with link
+  definitions is drawn block by block, so a long answer no longer slows down as it grows.
+- **Steps in a reply** show each step's number in a round mark on a line down to the next one.
+- **Copying from a reply** pastes its text, formatting and code without the app's colors, so a reply
+  copied from the dark theme reads normally in a light document.
+
+### Fixed
+
+- **Tabs in a reply** keep every variant when the model separates them with a line; only the first
+  one was a tab and the rest fell out below it.
+- **A formula that starts with a number**, such as `$2 + 2 = 4$`, is typeset; prices like
+  `$5 and $10` stay text.
+- **Sources in a reply** no longer show a bullet beside their number.
+- **No flashes while a reply arrives**: an empty item, heading or quote no longer appears for a
+  moment before its first word, and a badge shows as its image while its link is still arriving.
+- **A chat turn the app itself refused says why**: it no longer reads "The run stopped on an
+  unexpected error" when the reason was known.
 
 ### Removed
 
@@ -19,11 +42,6 @@ Localix is in beta: versions before 1.0 may change behavior between releases.
 - **Locate folder… and Change folder…**: a project's folder no longer changes, so the Files pane's
   Project folder not found notice, Settings → Projects → Folder and a terminal's Restart in its
   project's new folder are gone.
-
-### Fixed
-
-- **A chat turn the app itself refused says why**: it no longer reads "The run stopped on an
-  unexpected error" when the reason was known.
 
 ## v0.1.0-beta.28 — 2026-11-13
 
