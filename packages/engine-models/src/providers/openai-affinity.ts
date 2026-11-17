@@ -15,7 +15,6 @@ export const cacheKeyOf = (sessionId: string) =>
  * as Codex does, to keep an append-only session on one cache; this engine sent the key alone and
  * its hit rate on OpenAI models was uneven (a few percent in some sessions, over 90% in others).
  * Whether the headers are what evens it out is not measured against the live API.
- * The ChatGPT backend takes its own `session-id` (`auth/flows/openai-codex.ts`).
  */
 export function openaiAffinity(
   entry: CatalogEntry,

@@ -33,8 +33,6 @@ export interface WireProfile {
   requestHeaders?: (request: RequestContext) => Record<string, string> | undefined
   /** The model takes a sampling temperature; models.dev says which do not (reasoning models mostly). */
   temperature: boolean
-  /** The provider refuses a requested output limit (the ChatGPT backend). */
-  refusesOutputLimit?: boolean
   /** The model reads images. When false, images are sent as a short placeholder. Default: true. */
   images?: boolean
   /**
@@ -227,9 +225,7 @@ export function buildCallOptions(
           toolChoice: { type: 'auto' as const },
         }
       : {}),
-    ...(request.maxOutputTokens && !profile.refusesOutputLimit
-      ? { maxOutputTokens: request.maxOutputTokens }
-      : {}),
+    ...(request.maxOutputTokens ? { maxOutputTokens: request.maxOutputTokens } : {}),
     ...(request.temperature !== undefined && profile.temperature
       ? { temperature: request.temperature }
       : {}),

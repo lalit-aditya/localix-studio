@@ -11,7 +11,6 @@ import {
 export function providerIcon(providerId: string | undefined) {
   switch (providerId ?? '') {
     case 'openai':
-    case 'openai-codex':
       return CodexMark
     case 'anthropic':
     case 'claude-code':

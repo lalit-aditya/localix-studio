@@ -214,9 +214,7 @@ authorizations identify the application as **Localix** on ChatGPT's connection s
 sign-in finishes in the background. Once the connection is saved, the desktop app comes to the
 foreground and shows the model list for that connection, including after signing in again. Close the
 success page manually. The browser login uses a stable installation UUID, created on first use and
-retained in `~/.localix/oauth-device-id` across restarts and projects. `OpenAI Codex (legacy)`
-remains a separate provider using the older ChatGPT backend transport; existing connections keep
-their provider identity.
+retained in `~/.localix/oauth-device-id` across restarts and projects.
 
 | Control or value     | Contract                                                                               |
 | -------------------- | -------------------------------------------------------------------------------------- |
@@ -240,13 +238,14 @@ connections and selects the conversation's model.
 - “Provider-flexible” means the providers and models in the runtime catalog, not every provider,
   endpoint, protocol, or model.
 - OAuth is not synthesized for API-key-only providers. The available sign-in methods are exactly
-  those reported by the adapter's provider definitions: Sign in with ChatGPT (OpenAI), OpenAI Codex
-  (legacy), OpenRouter, and GitHub Copilot.
-- Sign-in for Anthropic (Claude Pro/Max), Kimi Coding, Meta, xAI and Radius is no longer offered.
-  The Event Center lists each existing signed-in connection to one of them as "<name> needs an API
-  key", from startup on, and its runs fail with "has no OAuth sign-in; reconnect it with an API
-  key". Remove it and add the provider again with an API key; the entry settles once the connection
-  is gone.
+  those reported by the adapter's provider definitions: Sign in with ChatGPT (OpenAI), OpenRouter,
+  and GitHub Copilot.
+- Sign-in for ChatGPT Plus/Pro (Codex), Anthropic (Claude Pro/Max), Kimi Coding, Meta, xAI and
+  Radius is no longer offered. Sign in with ChatGPT under OpenAI uses the same subscription. The
+  Event Center lists each existing signed-in connection to one of them as "<name> needs an API key",
+  from startup on, and its runs fail with "has no OAuth sign-in; reconnect it with an API key".
+  Remove it and add the provider again with an API key; the entry settles once the connection is
+  gone.
 - Multiple keys do not provide automatic rotation or request failover. A run selects the
   highest-priority enabled key; a provider failure does not retry the next key.
 - If vault data is missing, corrupt, or unreadable, Localix keeps the connection metadata visible

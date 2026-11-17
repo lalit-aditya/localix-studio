@@ -1,8 +1,8 @@
 /**
  * CONNECTIONS SIGNED IN THROUGH AN ACCOUNT LOCALIX NO LONGER SUPPORTS.
  *
- * The vendored runtime signed in to Anthropic, Kimi Coding, Meta, xAI and Radius with an account;
- * the engine that replaced it signs in to OpenAI, Codex, OpenRouter and GitHub Copilot. A
+ * Sign-in with an account is offered for OpenAI, OpenRouter and GitHub Copilot; Anthropic, Kimi
+ * Coding, Meta, xAI, Radius and ChatGPT Plus/Pro through Codex were signed in to once and are not. A
  * connection made through one of the others still exists and still looks connected, and every run
  * on it fails with "reconnect it with an API key" — after the person has already waited for it.
  * So the set of such connections is reported where problems are listed (the Event Center), at boot

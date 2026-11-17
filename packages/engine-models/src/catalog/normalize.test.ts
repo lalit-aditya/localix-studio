@@ -192,17 +192,14 @@ describe('normalizing models.dev', () => {
     expect(document.broken).toBeUndefined()
   })
 
-  test('caps the context at the first price tier, and derives the ChatGPT plan through Codex', () => {
+  test('caps the context at the first price tier, and offers no ChatGPT plan through Codex', () => {
     expect(document.openai!.chat['gpt-6-luna']).toMatchObject({
       contextWindow: 272_000,
       temperature: false,
       reasons: true,
       reasoning: ['off', 'low', 'high'],
     })
-    expect(document['openai-codex']!.chat['gpt-6-luna']).toMatchObject({
-      route: { family: 'openai', baseURL: 'https://chatgpt.com/backend-api/codex' },
-      contextWindow: 272_000,
-    })
+    expect(document['openai-codex']).toBeUndefined()
   })
 
   test('a cloud lists what its connection names besides the key, and keeps only addresses it can fill', () => {

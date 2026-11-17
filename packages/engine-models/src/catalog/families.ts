@@ -34,7 +34,7 @@ export interface Route {
 /** A sign-in other than an API key. */
 export interface OAuthLogin {
   /** Which flow (`auth/flows`). */
-  flow: 'openai-chatgpt' | 'openai-codex' | 'openrouter' | 'github-copilot'
+  flow: 'openai-chatgpt' | 'openrouter' | 'github-copilot'
   name: string
   loginLabel: string
   /** Paid through a subscription rather than per token: costs are an API-equivalent estimate. */
@@ -125,12 +125,6 @@ export const OAUTH_LOGINS: Readonly<Record<string, OAuthLogin>> = {
   openai: {
     flow: 'openai-chatgpt',
     name: 'OpenAI (ChatGPT subscription)',
-    loginLabel: 'Sign in with ChatGPT',
-    subscription: true,
-  },
-  'openai-codex': {
-    flow: 'openai-codex',
-    name: 'ChatGPT Plus/Pro (Codex)',
     loginLabel: 'Sign in with ChatGPT',
     subscription: true,
   },

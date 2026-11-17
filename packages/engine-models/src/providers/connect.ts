@@ -11,7 +11,6 @@ import type { ReasoningEffort } from '@localixai/agent'
 import { PINNED_ADDRESS } from '../catalog/addresses'
 import type { CatalogEntry } from '../catalog/catalog'
 import type { ProviderFamily } from '../catalog/families'
-import { CODEX_PROVIDER_ID } from '../catalog/normalize'
 import { fillTemplate } from '../catalog/settings'
 import type { WireProfile } from '../wire/prompt'
 import { CLOUD_FAMILIES, cloudModelFor, cloudProfile } from './clouds'
@@ -96,12 +95,9 @@ export function profileFor(
         temperature,
         requestOptions: openaiOptions(entry),
         requestHeaders: openaiAffinity(entry, access),
-        // The ChatGPT backend refuses a requested output limit.
-        ...(entry.provider.id === CODEX_PROVIDER_ID ? { refusesOutputLimit: true } : {}),
-        // OpenAI's own address and the ChatGPT backend (checked live); another vendor behind the
-        // OpenAI SDK may not know strict schemas.
-        ...((entry.provider.id === 'openai' && !entry.route.baseURL && !access?.baseURL) ||
-        entry.provider.id === CODEX_PROVIDER_ID
+        // OpenAI's own address (checked live); another vendor behind the OpenAI SDK may not know
+        // strict schemas.
+        ...(entry.provider.id === 'openai' && !entry.route.baseURL && !access?.baseURL
           ? { strictTools: true }
           : {}),
       }

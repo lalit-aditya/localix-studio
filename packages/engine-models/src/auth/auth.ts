@@ -19,14 +19,12 @@ import { OAUTH_LOGINS, type OAuthLogin } from '../catalog/families'
 import type { ProviderAccess } from '../providers/connect'
 import { gitHubCopilotFlow } from './flows/github-copilot'
 import { openAIChatGPTFlow } from './flows/openai-chatgpt'
-import { openAICodexFlow } from './flows/openai-codex'
 import { openRouterFlow } from './flows/openrouter'
 import type { OAuthFlow } from './flows/types'
 import { freshOAuth, refreshingAccess } from './oauth-access'
 
 const FLOWS: Readonly<Record<OAuthLogin['flow'], OAuthFlow>> = {
   'openai-chatgpt': openAIChatGPTFlow,
-  'openai-codex': openAICodexFlow,
   openrouter: openRouterFlow,
   'github-copilot': gitHubCopilotFlow,
 }

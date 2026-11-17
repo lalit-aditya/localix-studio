@@ -25,7 +25,6 @@ export function onDeviceFirst<T>(
  */
 export const POPULAR_PROVIDER_IDS: readonly string[] = [
   'openai',
-  'openai-codex',
   'anthropic',
   'google',
   'openrouter',

@@ -68,10 +68,6 @@ describe('reaching a model', () => {
     expect(headers('openai', undefined, { baseURL: 'https://proxy.example/v1' })).toEqual({
       'x-client-request-id': 's',
     })
-    // The ChatGPT backend has its own `session-id` (the sign-in flow) and refuses the underscore.
-    expect(headers('openai-codex', 'https://chatgpt.com/backend-api/codex')).toEqual({
-      'x-client-request-id': 's',
-    })
   })
 
   test('OpenRouter is told the reasoning level in its own terms, since its SDK reads no standard one', () => {
@@ -89,22 +85,12 @@ describe('reaching a model', () => {
     expect(profile.requestOptions?.(context())).toEqual({ usage: { include: true } })
   })
 
-  test('a model that takes no temperature is never sent one; the ChatGPT backend takes no output limit', () => {
+  test('a model that takes no temperature is never sent one; strict tools only on OpenAI itself', () => {
     expect(
       profileFor(entry('openai', { family: 'openai' }, { temperature: false })).temperature,
     ).toBe(false)
-    expect(profileFor(entry('openai-codex', { family: 'openai' })).refusesOutputLimit).toBe(true)
-    expect(profileFor(entry('openai', { family: 'openai' })).refusesOutputLimit).toBeUndefined()
-    // Strict function calling: OpenAI's own API and the ChatGPT backend, not other families.
+    // Strict function calling: OpenAI's own API, not other families or hosts.
     expect(profileFor(entry('openai', { family: 'openai' })).strictTools).toBe(true)
-    expect(
-      profileFor(
-        entry('openai-codex', {
-          family: 'openai',
-          baseURL: 'https://chatgpt.com/backend-api/codex',
-        }),
-      ).strictTools,
-    ).toBe(true)
     expect(profileFor(entry('anthropic', { family: 'anthropic' })).strictTools).toBeUndefined()
     expect(
       profileFor(entry('openai', { family: 'openai' }), { baseURL: 'https://proxy.example/v1' })

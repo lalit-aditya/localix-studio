@@ -62,7 +62,7 @@ function isNetworkFailure(error: Error): boolean {
 }
 
 // Documented codes for a spent allowance (OpenAI's `insufficient_quota`, `billing_hard_limit_reached`,
-// Codex's `usage_limit_reached`, …) and unmistakable phrasings. A bare "quota" or "billing" is not
+// a plan's `usage_limit_reached`, …) and unmistakable phrasings. A bare "quota" or "billing" is not
 // enough: a per-minute limit's text names both.
 const EXHAUSTED_CODE =
   /insufficient[_ -]?quota|billing_hard_limit_reached|billing_not_active|usage_limit_reached|usage_not_included|quota_exceeded_permanently/i

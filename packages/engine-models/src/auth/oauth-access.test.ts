@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, setSystemTime, test } from 'bun:test'
+import { describe, expect, setSystemTime, test } from 'bun:test'
 
 import type {
   RuntimeCredential,
@@ -6,9 +6,6 @@ import type {
   RuntimeOAuthCredential,
 } from '@localixai/agent/runtime'
 
-import type { CatalogEntry } from '../catalog/catalog'
-import { accessFor } from './auth'
-import { openAICodexFlow } from './flows/openai-codex'
 import type { OAuthFlow } from './flows/types'
 import { freshOAuth, refreshingAccess } from './oauth-access'
 
@@ -128,40 +125,5 @@ describe('an OAuth credential kept fresh for the whole run', () => {
     const refreshed = await freshOAuth('copilot', oauth('T1', 0), flow, memoryStore(oauth('T1', 0)))
     expect(refreshed.accessToken).toBe('T2')
     expect(signals[0]?.aborted).toBe(false)
-  })
-})
-
-describe('the ChatGPT (Codex) refresh', () => {
-  const realFetch = globalThis.fetch
-  afterEach(() => {
-    globalThis.fetch = realFetch
-  })
-
-  /** A JWT whose payload needs base64url (`-`, `_`) and names the account. */
-  const jwt = (accountId: string) =>
-    `x.${Buffer.from(
-      JSON.stringify({
-        'https://api.openai.com/auth': { chatgpt_account_id: accountId },
-        n: '>?~ü',
-      }),
-    ).toString('base64url')}.y`
-
-  test('keeps the old refresh token and an hour of life when the answer leaves them out, even after a stop', async () => {
-    globalThis.fetch = (async () =>
-      new Response(JSON.stringify({ access_token: jwt('acct-1') }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      })) as unknown as typeof globalThis.fetch
-    const entry = { provider: { id: 'openai-codex', name: 'Codex', local: false } } as CatalogEntry
-    const stopped = new AbortController()
-    stopped.abort()
-    const { access } = await accessFor(entry, oauth('old', 0), { signal: stopped.signal })
-    expect(access.apiKey).toBe(jwt('acct-1'))
-    expect(access.headers?.['chatgpt-account-id']).toBe('acct-1')
-
-    const refreshed = await openAICodexFlow.refresh(oauth('old', 0), new AbortController().signal)
-    expect(refreshed.refreshToken).toBe('r-old')
-    expect(refreshed.expiresAt - Date.now()).toBeGreaterThan(3_590_000)
-    expect(refreshed.extra?.accountId).toBe('acct-1')
   })
 })

@@ -44,7 +44,7 @@ describe('the engine', () => {
         .createAuth({} as never)
         .listProviders()
         .map((provider) => provider.id),
-    ).toContain('openai-codex')
+    ).not.toContain('openai-codex')
   })
 
   test('a stop ends a turn waiting for its session at once, even when the opening ignores it', async () => {

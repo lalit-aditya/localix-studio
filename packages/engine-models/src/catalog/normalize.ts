@@ -60,26 +60,11 @@ export interface ServedProvider {
 
 export type CatalogDocument = Record<string, ServedProvider>
 
-export const CODEX_PROVIDER_ID = 'openai-codex'
-const CODEX_BASE_URL = 'https://chatgpt.com/backend-api/codex'
-/** What a ChatGPT plan reaches through Codex; the rest of OpenAI's list needs an API account. */
-const CODEX_MODELS = [
-  'gpt-5.3-codex-spark',
-  'gpt-5.5',
-  'gpt-5.6-luna',
-  'gpt-5.6-sol',
-  'gpt-5.6-terra',
-  'gpt-6-astra',
-  'gpt-6-luna',
-  'gpt-6-sol',
-  'gpt-6.1-sol',
-]
-const CODEX_CONTEXT = 272_000
 /** OpenAI's Decisions API takes its chat model's id; models.dev lists only the chat model. */
 const OPENAI_DECISION_MODELS = ['gpt-6-luna']
 
 /** Ids the engine serves itself, and keys no record may be stored under. */
-const RESERVED = new Set(['local', 'openai-codex', '__proto__', 'constructor', 'prototype'])
+const RESERVED = new Set(['local', '__proto__', 'constructor', 'prototype'])
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -125,32 +110,6 @@ function asDecision(model: ServedModel): ServedModel {
     reasons: false,
     reasoning: [],
     ...(model.cost ? { cost: { ...model.cost, output: 0 } } : {}),
-  }
-}
-
-function codexProvider(openai: ServedProvider | undefined): ServedProvider | undefined {
-  if (!openai) return undefined
-  const route: Route = { family: 'openai', baseURL: CODEX_BASE_URL }
-  const chat: Record<string, ServedModel> = {}
-  for (const id of CODEX_MODELS) {
-    const model = openai.chat[id]
-    // The ChatGPT backend takes no temperature, and its window is the plan's, not the API's.
-    if (model)
-      chat[id] = {
-        ...model,
-        route,
-        temperature: false,
-        contextWindow: Math.min(model.contextWindow ?? CODEX_CONTEXT, CODEX_CONTEXT),
-      }
-  }
-  return {
-    id: CODEX_PROVIDER_ID,
-    name: 'ChatGPT Plus/Pro (Codex)',
-    env: [],
-    settings: [],
-    route,
-    chat,
-    decision: {},
   }
 }
 
@@ -238,8 +197,6 @@ export function normalize(providers: unknown): CatalogDocument {
       decision,
     }
   }
-  const codex = codexProvider(document.openai)
-  if (codex) document[CODEX_PROVIDER_ID] = codex
   return document
 }
 

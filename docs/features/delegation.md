@@ -92,8 +92,8 @@ The fork's request is the parent's last request followed by the call, its answer
 so the provider's prompt cache serves the shared part instead of writing it again. The cache is warm
 on providers that look up a prefix (Anthropic and Bedrock through an explicit breakpoint placed on
 the end of the parent's request; Google and OpenRouter automatically) and on providers keyed by
-session, which are given the parent's key (OpenAI-compatible providers and Codex). The `fork` name
-is reserved: an agent file called `fork` is listed but is never what a task goes to.
+session, which are given the parent's key (OpenAI-compatible providers). The `fork` name is
+reserved: an agent file called `fork` is listed but is never what a task goes to.
 
 A subagent runs under the conversation's permission mode, in the same workspace. Parallel edits must
 therefore use disjoint files or coordinate their changes. Another agent is admitted only when its

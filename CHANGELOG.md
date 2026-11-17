@@ -13,6 +13,9 @@ Localix is in beta: versions before 1.0 may change behavior between releases.
 
 ### Removed
 
+- **The ChatGPT Plus/Pro (Codex) provider**: use **Sign in with ChatGPT** under OpenAI, which uses
+  the same subscription. A connection made through it is listed in the Event Center until you remove
+  it.
 - **Locate folder… and Change folder…**: a project's folder no longer changes, so the Files pane's
   Project folder not found notice, Settings → Projects → Folder and a terminal's Restart in its
   project's new folder are gone.
