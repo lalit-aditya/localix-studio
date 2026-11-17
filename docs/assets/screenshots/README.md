@@ -32,7 +32,7 @@ either value in a second hand-maintained manifest.
   3200×2000, or 4800×3000 physical pixels). Use 3× for homepage media; never upscale an existing
   capture. Placeholder slots remain 1600×1000.
 - English UI and deterministic demo data.
-- Dark appearance unless the feature is specifically about the light one.
+- Dark appearance only; no light variants of any picture.
 - Capture the real product. A fixture project is acceptable; a fabricated product screen is not.
 - No personal names, private paths, real conversations, secrets, keys, tokens, unrelated apps, or
   desktop chrome.

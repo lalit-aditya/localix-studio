@@ -35,11 +35,9 @@ for (const [key, spec] of Object.entries(capturePlan)) {
     const route = `${uiOrigin}/#/project/${prefix ? fixture[`${prefix}ProjectId`] : fixture.projectId}/${prefix ? fixture[`${prefix}SessionId`] : fixture.sessionId}`
     const errors = []
     page.on('pageerror', (error) => errors.push(error.message))
-    // A spec's own theme, or the theme and size a review run asks for (`LOCALIX_CAPTURE_THEME=light`,
-    // `LOCALIX_CAPTURE_VIEWPORT=900x800`) to look at one scenario at another width.
-    const theme = process.env.LOCALIX_CAPTURE_THEME || spec.theme
-    if (theme)
-      await page.addInitScript((value) => localStorage.setItem('sandbox_theme', value), theme)
+    // Product captures are dark only: every picture the docs, the README and the site show is the
+    // dark theme. A review run may ask for another size (`LOCALIX_CAPTURE_VIEWPORT=900x800`).
+    await page.addInitScript(() => localStorage.setItem('sandbox_theme', 'dark'))
     const size = process.env.LOCALIX_CAPTURE_VIEWPORT?.match(/^(\d+)x(\d+)$/)
     if (size) await page.setViewportSize({ width: Number(size[1]), height: Number(size[2]) })
     // Setup opens by itself until it has been closed once on a device; a capture is not a first

@@ -2,9 +2,10 @@
 
 Run these Playwright tests deliberately. They are excluded from Bun's normal discovery and are not
 part of CI. Each scenario performs real UI actions, checks the result, and only then writes a native
-4800×3000 PNG. No DOM replacement, CSS recoloring, pixel retouching, real provider credentials or
-model calls are needed. Composer scenarios seed an explicitly fake provider key in the isolated
-database to exercise the configured composer; it never reaches a provider.
+4800×3000 PNG, always in the dark theme: every picture the docs, the README and the site show is
+dark. No DOM replacement, CSS recoloring, pixel retouching, real provider credentials or model calls
+are needed. Composer scenarios seed an explicitly fake provider key in the isolated database to
+exercise the configured composer; it never reaches a provider.
 
 The suite covers the core only: chat, composer, workspace, settings, agents, providers and the
 Store. A mini app is installed from a marketplace like anyone's, so its own screens and their
@@ -136,9 +137,8 @@ captures; its DOM tests cover it.
 The mini app marketplaces, the plugin shelves, Sources and the consent sheet come from the default
 sources, which the runtime reads over the network when it starts, so it needs the network, and the
 scenarios assert what any answer looks like rather than a named package. To look at the Store at
-another width or theme, set `LOCALIX_CAPTURE_VIEWPORT=2000x1100` (the pane is about 60% of it) and
-`LOCALIX_CAPTURE_THEME=light` and read the run directory; publishing needs the native 1600×1000
-capture, so those runs are for review only.
+another width, set `LOCALIX_CAPTURE_VIEWPORT=2000x1100` (the pane is about 60% of it) and read the
+run directory; publishing needs the native 1600×1000 capture, so those runs are for review only.
 
 ## Composer surfaces and recommendations
 
