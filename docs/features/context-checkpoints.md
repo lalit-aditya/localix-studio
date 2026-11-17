@@ -1,4 +1,4 @@
-# Keep a long session inside the request budget
+# Keep a long session in the request budget
 
 Localix shows the model a bounded view of a session while the stored transcript stays whole. Use
 this page to understand what the agent still sees after a long conversation, and how to keep a

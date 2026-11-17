@@ -82,12 +82,12 @@ Each recipe walks through one task from setup to a visible result.
 
 ### Models & context
 
-| Guide                                                                            | Covers                                                     |
-| -------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| [Connect model providers](features/providers.md)                                 | Connect providers and route models to different workloads. |
-| [Keep a long session inside the request budget](features/context-checkpoints.md) | Keep long sessions within the request budget.              |
-| [Know the tool roster](features/tools.md)                                        | Inspect live, deferred, and withheld tools.                |
-| [Manage the tool budget](features/tool-budget.md)                                | Understand schema estimates and the backend usage report.  |
+| Guide                                                                        | Covers                                                     |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| [Connect model providers](features/providers.md)                             | Connect providers and route models to different workloads. |
+| [Keep a long session in the request budget](features/context-checkpoints.md) | Keep long sessions within the request budget.              |
+| [Know the tool roster](features/tools.md)                                    | Inspect live, deferred, and withheld tools.                |
+| [Manage the tool budget](features/tool-budget.md)                            | Understand schema estimates and the backend usage report.  |
 
 ### Memory & skills
 
