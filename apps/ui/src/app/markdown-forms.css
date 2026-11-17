@@ -1,5 +1,6 @@
-/* The answer forms over `@localix-ai/flowdown/styles.css`: steps, tabs, stats, pros/cons, trees and
-   checklists, in the workspace's typography. Tokens and the base rules: `markdown.css`. */
+/* The answer forms over `@localix-ai/flowdown/styles.css`: tabs, stats, pros/cons, trees and
+   checklists, in the workspace's typography; steps and sources are flowdown's own. Tokens and the base
+   rules: `markdown.css`. */
 
 /* ─── Answer forms: the dialect's structured shapes (`@localix-ai/flowdown/prompt` teaches them) ───
    Steps, tabs, headline figures, the case for and against, file trees and checklists. Each is
@@ -8,20 +9,10 @@
    veil the callouts use (the foreground at a few percent), right in every theme and under glass. */
 
 /* ─── Steps (`> [!STEPS]` over a list) ───
-   A sequence read in order: an open dot per step on a dotted line, the step's title, its
-   "when" quieter beneath, then its text. */
-.flowdown .fd-steps-title,
-.flowdown .fd-stats-title,
-.flowdown .fd-tabs-title {
-  margin-bottom: 0.35rem;
-  font-weight: 600;
-  color: var(--foreground);
-}
-.flowdown .fd-steps-title + .fd-steps,
-.flowdown .fd-stats-title + .fd-stats,
-.flowdown .fd-tabs-title + .fd-tabs {
-  margin-top: 0;
-}
+   flowdown's own: each step's number in a round mark on a line down to the next, in the
+   workspace's tokens (`markdown.css`). Its rules sit in a layer, and `markdown.css` numbers and
+   spaces every list outside it, which wins: the list's own number and gaps are taken back here,
+   and nothing of the mark is restyled. */
 .flowdown ol.fd-steps,
 .flowdown ul.fd-steps {
   list-style: none;
@@ -29,53 +20,21 @@
   padding-left: 0;
 }
 .flowdown .fd-steps > li {
-  --step-dot: 0.875rem;
-  position: relative;
-  margin: 0;
-  padding: 0 0 0.9rem 1.75rem;
-}
-.flowdown .fd-steps > li:last-child {
-  padding-bottom: 0;
-}
-/* The dot sits on the first line box, whatever its height. */
-.flowdown .fd-steps > li::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: calc((1lh - var(--step-dot)) / 2);
-  width: var(--step-dot);
-  height: var(--step-dot);
-  border: 1.5px solid var(--text-soft);
-  border-radius: 9999px;
-}
-/* The line runs from under this dot to the next one; the last step has none to reach. */
-.flowdown .fd-steps > li:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  left: calc(var(--step-dot) / 2 - 0.75px);
-  top: calc((1lh + var(--step-dot)) / 2 + 0.25rem);
-  bottom: 0.15rem;
-  border-left: 1.5px dotted color-mix(in oklch, var(--foreground) 28%, transparent);
-}
-.flowdown .fd-step-head {
   margin: 0;
 }
-.flowdown .fd-step-title {
+.flowdown .fd-steps-title,
+.flowdown .fd-stats-title,
+.flowdown .fd-sources-title,
+.flowdown .fd-tabs-title {
+  margin-bottom: 0.35rem;
   font-weight: 600;
   color: var(--foreground);
 }
-.flowdown .fd-step-meta {
-  display: block;
-  margin-top: 0.1rem;
-  font-size: 0.85em;
-  font-style: italic;
-  color: var(--text-faint);
-}
-.flowdown .fd-step-body {
-  margin: 0.3rem 0 0;
-}
-.flowdown .fd-steps > li > :last-child {
-  margin-bottom: 0;
+.flowdown .fd-steps-title + .fd-steps,
+.flowdown .fd-stats-title + .fd-stats,
+.flowdown .fd-sources-title + .fd-sources,
+.flowdown .fd-tabs-title + .fd-tabs {
+  margin-top: 0;
 }
 
 /* ─── Tabs (`> [!TABS]` with a heading per variant, `flowdown` Tabs) ───
@@ -208,6 +167,19 @@
 }
 .flowdown .fd-verdict[data-verdict='cons'] .fd-verdict-list > li::before {
   content: '✕';
+}
+
+/* ─── References (`> [!SOURCES]` over a list of links) ───
+   flowdown's own numbered rows, as the steps are: only the list's bullet and gaps that
+   `markdown.css` gives every list are taken back. */
+.flowdown ul.fd-sources,
+.flowdown ol.fd-sources {
+  margin: 0.8rem 0;
+  padding: 0;
+  list-style: none;
+}
+.flowdown .fd-sources > li {
+  margin: 0.45rem 0;
 }
 
 /* ─── File tree (a ```tree fence, see FileTree) ───
