@@ -17,7 +17,6 @@ import { useFileTreeDecorations, useFileTreeScopeKey } from '@/shared/contrib/fi
 import { selectedComparePathForSession, useCompareSelection } from '../model/compareSelection'
 import { EmptyHint, LoadingHint } from '@localixai/kit/empty-hint'
 import { ProblemLine } from '@/shared/ui/problem-report'
-import { MissingFolderNotice } from './MissingFolderNotice'
 import { useTreeSearch } from './useTreeSearch'
 import { useTreeDnd } from './useTreeDnd'
 import type { TreeRowOps } from './treeRowOps'
@@ -53,7 +52,6 @@ function SessionFileTreeSidebar({ sessionId }: { sessionId: string | null }) {
     problem,
     refreshing,
     live,
-    folderGone,
     edit,
     editError,
     pendingDelete,
@@ -297,9 +295,7 @@ function SessionFileTreeSidebar({ sessionId }: { sessionId: string | null }) {
           onClose={closeSearch}
         />
       )}
-      {folderGone && sessionId ? (
-        <MissingFolderNotice sessionId={sessionId} onResolved={loadRoot} />
-      ) : contentMode ? (
+      {contentMode ? (
         <ContentSearchView cs={content} query={query} />
       ) : (
         <ContextMenu>

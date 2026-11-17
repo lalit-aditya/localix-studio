@@ -3,12 +3,7 @@ import { chmod, mkdir, rename, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tempDirPerTest } from '@localixai/testing'
 
-import {
-  assertWorkspaceFolder,
-  folderIdentity,
-  suggestMovedFolder,
-  workspaceFolderState,
-} from './workspace-folder'
+import { assertWorkspaceFolder, workspaceFolderState } from './workspace-folder'
 
 const temp = tempDirPerTest('workspace-folder-')
 
@@ -71,49 +66,5 @@ describe('workspace folder state', () => {
     await mkdir(dir)
     expect(await workspaceFolderState(dir)).toBe('present')
     await assertWorkspaceFolder(dir)
-  })
-})
-
-describe('finding a moved folder', () => {
-  test('a folder renamed beside itself after Localix saw it is suggested', async () => {
-    const before = join(temp(), 'work', 'claude-plugin-kit')
-    const after = join(temp(), 'work', 'llx-plugin')
-    await mkdir(before, { recursive: true })
-    await mkdir(join(temp(), 'work', 'other'))
-    const identity = await folderIdentity(before)
-    await rename(before, after)
-    expect(await suggestMovedFolder(before, identity)).toBe(after)
-  })
-
-  test('a folder moved one level away, under a renamed parent, is suggested', async () => {
-    const before = join(temp(), 'jobs', 'acme', 'app')
-    await mkdir(before, { recursive: true })
-    const identity = await folderIdentity(before)
-    await rename(join(temp(), 'jobs', 'acme'), join(temp(), 'jobs', 'acme-inc'))
-    expect(await suggestMovedFolder(before, identity)).toBe(join(temp(), 'jobs', 'acme-inc', 'app'))
-  })
-
-  test('nothing is suggested for a folder Localix never saw, or a look-alike with the same name', async () => {
-    const before = join(temp(), 'never-seen')
-    await mkdir(join(temp(), 'never-seen-2'))
-    expect(await suggestMovedFolder(before, null)).toBeNull()
-
-    const seen = join(temp(), 'repo')
-    await mkdir(seen)
-    const identity = await folderIdentity(seen)
-    // Moved out of reach, three levels down, and other folders made where it is looked for: same
-    // name, not the same folder. It still exists, so no new folder is handed its inode (a deleted
-    // folder's inode goes to the next one made, within one birth-time tick on Linux).
-    await mkdir(join(temp(), 'far', 'away'), { recursive: true })
-    await rename(seen, join(temp(), 'far', 'away', 'repo'))
-    await mkdir(join(temp(), 'repo-copy'))
-    await mkdir(join(temp(), 'nested', 'repo'), { recursive: true })
-    expect(await suggestMovedFolder(seen, identity)).toBeNull()
-  })
-
-  test('a folder still where it was is not "moved"', async () => {
-    const here = join(temp(), 'here')
-    await mkdir(here)
-    expect(await suggestMovedFolder(here, await folderIdentity(here))).toBeNull()
   })
 })

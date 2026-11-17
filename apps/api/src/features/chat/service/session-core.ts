@@ -3,6 +3,7 @@ import { readAvailability } from '../../capabilities/availability'
 import { discardSessionData } from '../../mini-apps/session-storage'
 import { resolveDefaultProject } from '../../projects/default-project'
 import { assertWorkspaceFolder } from '../../projects/workspace-folder'
+import { assertProjectFolder } from '../../projects/folder-gone'
 import type { SessionDetail } from '../contracts'
 import { createModelContextRepository } from '../model-context-repository'
 import { toSessionSummary, type SessionRecord } from '../repository'
@@ -41,11 +42,20 @@ export function createSessionCore(deps: ChatServiceDeps, graph: ChatServiceGraph
     runner,
   } = graph
 
+  // The gate of every chat request (a read, a send, a file, a turn). A chat whose project's folder
+  // is gone is gone too: the project is deleted here (`folder-gone.ts`) before anything is saved
+  // or run, and the caller hears the chat does not exist, as it will from now on.
   const requireSession = async (userId: string, id: string): Promise<SessionRecord> => {
     const session = await repo.getSession(userId, id)
     if (!session) {
       throw new NotFoundError('session_not_found', 'Session not found')
     }
+    if (session.projectId)
+      await assertProjectFolder(
+        projectsRepo,
+        await projectsRepo.getProject(userId, session.projectId),
+        now(),
+      )
     return session
   }
 

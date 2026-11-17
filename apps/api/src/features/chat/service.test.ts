@@ -51,12 +51,13 @@ describe('chat service', () => {
     await migrateToLatest(db)
     const userId = 'user_session_cwd'
     const projectId = 'project_session_cwd'
-    const missingWorkingDir = join(tempDir, randomUUID(), 'not-created')
+    const workingDir = join(tempDir, randomUUID(), 'project')
+    await mkdir(workingDir, { recursive: true })
     await createProjectsRepository(db).insertProject({
       id: projectId,
       userId,
-      name: 'Missing root is valid metadata',
-      workingDir: missingWorkingDir,
+      name: 'Cwd metadata',
+      workingDir,
       settings: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -74,9 +75,9 @@ describe('chat service', () => {
       projectId,
     })
 
-    expect(await chatService.resolveSessionCwd(userId, session.id)).toBe(missingWorkingDir)
+    expect(await chatService.resolveSessionCwd(userId, session.id)).toBe(workingDir)
     expect(await chatService.resolveSessionWorkspaceMetadata(userId, session.id)).toEqual({
-      rootPath: missingWorkingDir,
+      rootPath: workingDir,
       projectId,
     })
     expect(chatService.resolveSessionCwd('another-user', session.id)).rejects.toMatchObject({
@@ -86,11 +87,6 @@ describe('chat service', () => {
       chatService.resolveSessionWorkspaceMetadata('another-user', session.id),
     ).rejects.toMatchObject({
       code: 'session_not_found',
-    })
-    // Listing works IN the folder, so a missing root is refused as a missing workspace folder.
-    expect(chatService.listDirectory(userId, session.id)).rejects.toMatchObject({
-      status: 409,
-      code: 'workspace_folder_missing',
     })
     await destroyDatabase(db)
   })

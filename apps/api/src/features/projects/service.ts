@@ -20,8 +20,7 @@ import {
   resolveDefaultProject,
 } from './default-project'
 import { assertAbsolutePath, inspectPath } from './inspect-path'
-import { noteProjectFolder, projectFolder, relocateProject } from './relocate'
-import { folderIdentity } from './workspace-folder'
+import { forgetProjectIfFolderGone } from './folder-gone'
 import type { ProjectsServiceDeps } from './service-deps'
 
 export type { ProjectsServiceDeps } from './service-deps'
@@ -61,19 +60,12 @@ export function createProjectsService(deps: ProjectsServiceDeps) {
       createdAt: timestamp,
       updatedAt: timestamp,
       deletedAt: null,
-      folderIdentity: await folderIdentity(input.workingDir.trim()),
     }
     await repo.insertProject(record)
     return toDto(record)
   }
 
   const expandRefsWithin = createUserRefExpander(deps)
-  const relocateDeps = {
-    repo,
-    now,
-    ...(deps.claudeCode ? { claudeCode: deps.claudeCode } : {}),
-    ...(deps.homeDir ? { homeDir: deps.homeDir } : {}),
-  }
 
   return {
     /** The project a session with no explicit one belongs to. See `default-project.ts`. */
@@ -89,9 +81,11 @@ export function createProjectsService(deps: ProjectsServiceDeps) {
     async listProjects(userId: string): Promise<{ projects: Project[] }> {
       await resolveDefaultProject(repo, userId, now)
       const rows = await repo.listProjects(userId)
-      // Each list notes which folder every project is, so one renamed later is recognised.
-      await Promise.all(rows.map((row) => noteProjectFolder(repo, row)))
-      return { projects: rows.map(toDto) }
+      // A project whose folder is gone is deleted here, so the list (read at every start and on
+      // every project change) never offers it.
+      const at = now()
+      const gone = await Promise.all(rows.map((row) => forgetProjectIfFolderGone(repo, row, at)))
+      return { projects: rows.filter((_, i) => !gone[i]).map(toDto) }
     },
 
     async createProject(userId: string, input: CreateProjectRequest): Promise<Project> {
@@ -201,21 +195,6 @@ export function createProjectsService(deps: ProjectsServiceDeps) {
           updatedAt,
         }
       })
-    },
-
-    /**
-     * Point the project at the folder it moved to; see `relocate.ts` for what follows it. The
-     * generic update cannot change the folder: this is the one way, so it is always checked.
-     */
-    async relocateProject(userId: string, id: string, path: string) {
-      return serializeUpdate(`${userId}\n${id}`, async () =>
-        relocateProject(relocateDeps, await requireProject(userId, id), path),
-      )
-    },
-
-    /** Whether the project's folder is where it says, and where it went when that is certain. */
-    async projectFolder(userId: string, id: string) {
-      return projectFolder(relocateDeps, await requireProject(userId, id))
     },
 
     /**

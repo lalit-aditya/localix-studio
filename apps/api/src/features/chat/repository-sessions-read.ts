@@ -1,5 +1,5 @@
 import { parseSessionProvenance } from './session-provenance'
-import { sql, type Kysely } from 'kysely'
+import { sql, type ExpressionBuilder, type Kysely } from 'kysely'
 
 import type { AppDatabase } from '../../db'
 import { mapSession } from './repository-mappers'
@@ -13,6 +13,23 @@ import { MAX_SESSION_ANCESTRY_DEPTH } from './session-ancestry'
 // poll, plus the point lookups. Split out of repository.ts; every method here is a
 // pure db read, so the module needs nothing but the connection.
 
+/**
+ * A session whose project was deleted is gone with it: the roster and the point lookup (the gate
+ * every session request passes, `requireSession`) leave it out. The rows stay, so re-opening the
+ * project's folder (`resolveProjectByPath` restores the project) brings its chats back.
+ */
+const notInDeletedProject = (eb: ExpressionBuilder<AppDatabase, 'agent_sessions'>) =>
+  eb.not(
+    eb.exists(
+      eb
+        .selectFrom('projects')
+        .select('projects.id')
+        .whereRef('projects.id', '=', 'agent_sessions.project_id')
+        .whereRef('projects.user_id', '=', 'agent_sessions.user_id')
+        .where('projects.deleted_at', 'is not', null),
+    ),
+  )
+
 export function createSessionReadQueries(db: Kysely<AppDatabase>) {
   return {
     async listSessions(userId: string): Promise<SessionRecord[]> {
@@ -20,6 +37,7 @@ export function createSessionReadQueries(db: Kysely<AppDatabase>) {
         .selectFrom('agent_sessions')
         .selectAll()
         .where('user_id', '=', userId)
+        .where(notInDeletedProject)
         .orderBy('is_pinned', 'desc')
         .orderBy('updated_at', 'desc')
         .execute()
@@ -134,12 +152,24 @@ export function createSessionReadQueries(db: Kysely<AppDatabase>) {
     /** Each of one user's sessions' last message preview, keyed by session id. */
     lastMessagesByUser: (userId: string) => lastMessagesByUser(db, userId),
 
+    /** Every session filed under a project, its project deleted or not (`session-residue.ts`). */
+    async listSessionIdsOfProject(userId: string, projectId: string): Promise<string[]> {
+      const rows = await db
+        .selectFrom('agent_sessions')
+        .select('id')
+        .where('user_id', '=', userId)
+        .where('project_id', '=', projectId)
+        .execute()
+      return rows.map((row) => row.id)
+    },
+
     async getSession(userId: string, id: string): Promise<SessionRecord | null> {
       const row = await db
         .selectFrom('agent_sessions')
         .selectAll()
         .where('user_id', '=', userId)
         .where('id', '=', id)
+        .where(notInDeletedProject)
         .executeTakeFirst()
 
       return row ? mapSession(row) : null

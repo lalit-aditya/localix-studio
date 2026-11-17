@@ -1,6 +1,4 @@
 import { useGridStore, groupOfTab, type WorkItem } from '@/entities/workspace-grid/model'
-import { useChatStore } from '@/entities/chat/model/store'
-import { projectDirOf } from './terminalFolderMove'
 
 export function makeTerminalItem(args: {
   sessionId: string
@@ -21,9 +19,6 @@ export function makeTerminalItem(args: {
       owned: args.owned,
       command: args.command,
       cwd: args.cwd,
-      // The project folder it started under: a later move of the project is then told apart from
-      // a terminal started somewhere else (`terminalFolderMove`).
-      projectDir: projectDirOf(useChatStore.getState(), args.sessionId),
     },
   }
 }

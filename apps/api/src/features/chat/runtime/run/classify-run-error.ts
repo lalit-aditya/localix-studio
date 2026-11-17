@@ -1,5 +1,15 @@
 import { classifyAgentError, type AgentErrorInfo } from '@localixai/agent/agents'
+import { DomainError } from '../../../../lib/domain-errors'
 import { LocalContextBudgetExceededError } from '../context-budget'
+
+/**
+ * The host itself refused, in its own words (a chat whose project folder is gone, a record that
+ * does not exist, a request it will not serve). Not a provider's answer, so it never goes through
+ * the provider's status table, which has no sentence for a 404 or 409 and called it "an unexpected
+ * error". A host fault that may clear (`unavailable`, `internal`) still does, so it is retried.
+ */
+const isHostRefusal = (error: unknown): error is DomainError =>
+  error instanceof DomainError && error.kind !== 'unavailable' && error.kind !== 'internal'
 
 /**
  * `classifyAgentError`, plus vault-value redaction of the one field that leaves the process.
@@ -27,8 +37,9 @@ export function classifyRunError(
   userId: string,
   error: unknown,
 ): AgentErrorInfo {
-  const info: AgentErrorInfo =
-    error instanceof LocalContextBudgetExceededError
+  const info: AgentErrorInfo = isHostRefusal(error)
+    ? { kind: 'fatal', userMessage: error.message, retryable: false }
+    : error instanceof LocalContextBudgetExceededError
       ? error.reason === 'estimated_context_too_large'
         ? {
             kind: 'context_overflow',

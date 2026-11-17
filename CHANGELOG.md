@@ -4,6 +4,24 @@ Localix is in beta: versions before 1.0 may change behavior between releases.
 
 ## Unreleased
 
+### Changed
+
+- **A project whose folder is gone is removed**: when a project's folder was moved, renamed or
+  deleted, Localix removes the project and its chats instead of letting you type into a chat that
+  can only fail with "an unexpected error". An open chat closes, and opening the same folder again
+  brings the project and its chats back.
+
+### Removed
+
+- **Locate folder… and Change folder…**: a project's folder no longer changes, so the Files pane's
+  Project folder not found notice, Settings → Projects → Folder and a terminal's Restart in its
+  project's new folder are gone.
+
+### Fixed
+
+- **A chat turn the app itself refused says why**: it no longer reads "The run stopped on an
+  unexpected error" when the reason was known.
+
 ## v0.1.0-beta.28 — 2026-11-13
 
 Localix Studio now lives at github.com/localixai/localix-studio, beside the rest of Localix. Its

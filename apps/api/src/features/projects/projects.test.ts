@@ -18,6 +18,13 @@ import { createProviderConnectionsService } from '../provider-connections/servic
 
 const tempDir = join(tmpdir(), `localix-projects-tests-${process.pid}`)
 
+/** A real folder: a project whose folder is not there is deleted when the list is read. */
+const realDir = async (name: string) => {
+  const dir = join(tempDir, `${name}-${randomUUID()}`)
+  await mkdir(dir, { recursive: true })
+  return dir
+}
+
 describe('projects feature', () => {
   let db: any
   let projectsService: any
@@ -55,13 +62,14 @@ describe('projects feature', () => {
     expect(initial.projects.map((p: Project) => p.isDefault)).toEqual([true])
 
     // 2. Create project
+    const testProject = await realDir('test-project')
     const project = await projectsService.createProject(userId, {
       name: 'Test Project',
-      workingDir: '/path/to/test-project',
+      workingDir: testProject,
     })
     expect(project.id).toBeDefined()
     expect(project.name).toBe('Test Project')
-    expect(project.workingDir).toBe('/path/to/test-project')
+    expect(project.workingDir).toBe(testProject)
 
     // 3. List contains project
     const list = await projectsService.listProjects(userId)
@@ -73,16 +81,14 @@ describe('projects feature', () => {
     expect(fetched.name).toBe('Test Project')
 
     // 5. Update project
-    // The folder is not part of the generic update: `relocateProject` is the one way to move it.
+    // The folder is not part of the generic update: a project's folder never changes.
     const updated = await projectsService.updateProject(userId, project.id, {
       name: 'Updated Name',
       workingDir: '/new/path',
     })
     expect(updated.name).toBe('Updated Name')
-    expect(updated.workingDir).toBe('/path/to/test-project')
-    expect((await projectsService.getProject(userId, project.id)).workingDir).toBe(
-      '/path/to/test-project',
-    )
+    expect(updated.workingDir).toBe(testProject)
+    expect((await projectsService.getProject(userId, project.id)).workingDir).toBe(testProject)
 
     // 6. Delete project
     await projectsService.deleteProject(userId, project.id)
@@ -164,7 +170,7 @@ describe('projects feature', () => {
 
     const project = await projectsService.createProject(userId, {
       name: 'Widget Project',
-      workingDir: '/workspace/widget',
+      workingDir: await realDir('widget'),
     })
 
     const session = await chatService.createSession(userId, {
@@ -183,7 +189,7 @@ describe('projects feature', () => {
     // project id rather than a null that used to mean "the global capability scope".
     const other = await projectsService.createProject(userId, {
       name: 'Other Project',
-      workingDir: '/workspace/other',
+      workingDir: await realDir('other'),
     })
     const updatedSession = await chatService.updateSession(userId, session.id, {
       projectId: other.id,
@@ -222,16 +228,16 @@ describe('projects feature', () => {
     await migrateToLatest(ownDb)
     const svc = createProjectsService({ db: ownDb })
     const userId = 'user_resolve'
-    const dir = '/Users/me/work/my-app'
+    const dir = await realDir('my-app')
 
     // First call for an unknown path mints a project named after the basename.
     const first = await svc.resolveProjectByPath(userId, dir)
     expect(first.created).toBe(true)
     expect(first.project.workingDir).toBe(dir)
-    expect(first.project.name).toBe('my-app')
+    expect(first.project.name).toStartWith('my-app')
 
     // Second call for the same path (even non-normalized) reuses it — no dupes.
-    const again = await svc.resolveProjectByPath(userId, '/Users/me/work/my-app/')
+    const again = await svc.resolveProjectByPath(userId, `${dir}/`)
     expect(again.created).toBe(false)
     expect(again.project.id).toBe(first.project.id)
 
@@ -251,7 +257,7 @@ describe('projects feature', () => {
     await migrateToLatest(ownDb)
     const svc = createProjectsService({ db: ownDb })
     const userId = 'user_resolve_concurrent'
-    const dir = '/Users/me/work/concurrent-app'
+    const dir = await realDir('concurrent-app')
 
     const [a, b, c] = await Promise.all([
       svc.resolveProjectByPath(userId, dir),

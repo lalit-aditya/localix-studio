@@ -55,46 +55,22 @@ Long paths scroll horizontally, keeping every ancestor reachable. Navigating to 
 reveals the end of its path automatically. Trackpad gestures and a mouse wheel both scroll the
 trail.
 
-### When the project folder moves
+### When the project folder is gone
 
-A project remembers its folder by path. Rename, move or delete the folder and the project's chats
-still open with their history, but nothing that works in the folder runs: the Files pane, file reads
-and writes, search, a new terminal, the language servers and the next chat turn each answer with the
-same `409` error, and so does a slash command that works in the folder, such as `/diff`. Its code
-names what is wrong with the folder: `workspace_folder_missing`, `workspace_folder_not_a_directory`
-or `workspace_folder_unreadable`. The Files pane shows **Project folder not found** with the old
-path and three actions:
+A project is its folder. Rename, move or delete the folder (or unplug its disk, or take away
+Localix's access to it) and the project is removed with its chats, the same way **Remove project**
+in **Settings → Projects** removes it. Localix does not look for where the folder went, and a
+project's folder never changes.
 
-- **Locate folder…** picks the folder's new place and points the project there. Every chat in the
-  project follows, with its history.
-- **Use "_folder_"** appears when Localix can tell for certain that a folder nearby is the same one,
-  moved or renamed. It is only a suggestion: nothing changes until you click it. Localix stores
-  which folder the project is (its disk, file number and creation time) each time it sees it, so a
-  folder renamed while Localix was closed is still suggested after the restart. A different folder
-  made with the old name is not.
-- **Try again** looks again, for a folder put back or a disk plugged in.
+Localix notices the next time it reads the project list (at every start, and whenever a project
+changes) or the next time anything asks for one of the project's chats: opening it, sending a
+message, a file in the Files pane, a terminal, or a turn from the queue, a trigger or a loop. That
+request is refused before anything is saved or run, with `404` `session_not_found` and the words
+"The project folder is gone, so the project and its chats were removed", and an open chat closes.
+The monitors and loops of its chats stop.
 
-**Settings → Projects → Folder → Change folder…** does what **Locate folder…** does, for a project
-whose folder is still there but should point somewhere else.
-
-What follows the project to the new folder:
-
-- Its chats, rules and settings, which are filed under the project, not the path.
-- Claude Code's auto memory for the old path is copied when the new folder has none. The old copy
-  stays.
-- Live views pick up the new folder: the file watcher, mini apps and every open window.
-
-What does not:
-
-- Claude Code's trust in a folder is never carried over. Trust is Claude Code's answer to "may this
-  folder's hooks, MCP servers and settings run", and a path does not prove it is the same folder.
-  Localix reads that answer and never writes it. If the old folder was trusted and the new one is
-  not, Localix says so; open the folder in Claude Code once to trust it.
-- A terminal that is already open keeps its old directory. It says the folder moved and offers
-  **Restart in "_folder_"**, which opens a new shell in the same place inside the new folder.
-
-A project cannot move into a folder another project already uses, into your home folder or a disk
-root, or into the default project's folder.
+Removing a project hides it; nothing is erased. Open the same folder again (**File → Open Folder…**)
+and the project comes back with its chats.
 
 ### Who said it, and when
 
@@ -341,7 +317,7 @@ persisted per session where applicable.
 - [Project persistence and deletion behavior](https://github.com/localixai/localix-studio/blob/main/apps/api/src/features/projects/repository.ts)
 - [Session contracts and persisted fields](https://github.com/localixai/localix-studio/blob/main/apps/api/src/features/chat/contracts/session.ts)
 - [Session working-directory resolution](https://github.com/localixai/localix-studio/blob/main/apps/api/src/features/chat/session-cwd.ts)
-- [Moving a project to its folder's new place](https://github.com/localixai/localix-studio/blob/main/apps/api/src/features/projects/relocate.ts)
+- [A project whose folder is gone is removed](https://github.com/localixai/localix-studio/blob/main/apps/api/src/features/projects/folder-gone.ts)
   ·
   [folder status and refusal](https://github.com/localixai/localix-studio/blob/main/apps/api/src/features/projects/workspace-folder.ts)
 - [Message branching operations](https://github.com/localixai/localix-studio/blob/main/apps/api/src/features/chat/service/branching-ops.ts)

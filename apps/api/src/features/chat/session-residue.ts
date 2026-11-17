@@ -10,6 +10,11 @@
  *   - its Event Center rows, which no foreign key reaches;
  *   - its scratch directory, `~/.localix/workspace/<id>`, unless a project lives there.
  *
+ * A deleted PROJECT takes its chats away too (a person removed it, or its folder is gone,
+ * `projects/folder-gone.ts`): connected clients are told its chats are deleted, so an open one
+ * closes, and their monitors and loops stop. Nothing else of theirs is removed: the delete is soft,
+ * and opening the project's folder again brings the project and its chats back.
+ *
  * Every step is idempotent, so a duplicate notice does nothing. The reconcile removes inbox rows
  * of chats that no longer exist (a notice lost while down).
  */
@@ -29,6 +34,10 @@ export interface SessionResiduePorts {
   /** Sessions the inbox still has rows for, and which of them still exist. */
   inboxSessions(): Promise<ReadonlyArray<{ userId: string; sessionId: string }>>
   sessionExists(userId: string, sessionId: string): Promise<boolean>
+  /** Every chat filed under a project, sub-sessions included, whether or not it is deleted. */
+  projectSessions(userId: string, projectId: string): Promise<readonly string[]>
+  /** Tell connected clients these chats are gone (`session.deleted` on the stream). */
+  sessionsGone(userId: string, sessionIds: readonly string[]): void
   /** Where scratch directories live (tests). */
   workspaceDir?: string
 }
@@ -51,6 +60,15 @@ export function createSessionResidue(ports: SessionResiduePorts) {
     await discardSandbox(userId, sessionId)
   }
 
+  async function projectDeleted(userId: string, projectId: string): Promise<void> {
+    const sessionIds = await ports.projectSessions(userId, projectId)
+    for (const sessionId of sessionIds) {
+      ports.stopMonitors(sessionId)
+      await ports.cancelLoops(sessionId)
+    }
+    if (sessionIds.length > 0) ports.sessionsGone(userId, sessionIds)
+  }
+
   async function reconcile(): Promise<void> {
     for (const { userId, sessionId } of await ports.inboxSessions())
       if (!(await ports.sessionExists(userId, sessionId)))
@@ -69,7 +87,8 @@ export function createSessionResidue(ports: SessionResiduePorts) {
     mcp: 'ignore',
     agent: 'ignore',
     'capability.rule': 'ignore',
-    project: 'ignore',
+    project: (change) =>
+      change.op === 'deleted' ? projectDeleted(change.ref.userId, change.ref.id) : undefined,
     'local.model': 'ignore',
     'project.settings': 'ignore',
     'user.profile': 'ignore',

@@ -1,10 +1,14 @@
 import { expect, test } from 'bun:test'
+import { tempDirPerTest } from '@localixai/testing'
 import { createDatabase, destroyDatabase } from '../../../db/connection'
 import { migrateToLatest } from '../../../db/migrator'
 import { createProviderConnectionsService } from '../../provider-connections/service'
 import { createProjectsRepository } from '../../projects/repository'
 import { createTestCatalogService, createTestChatService } from '../test-harness'
 import { testWork } from '../../../testing/work-fixture'
+
+/** The project's folder is real: a project whose folder is gone is deleted with its chats. */
+const temp = tempDirPerTest('linked-agent-')
 
 test('an attached native identity is persisted at chat creation without imported messages', async () => {
   const db = createDatabase()
@@ -14,7 +18,7 @@ test('an attached native identity is persisted at chat creation without imported
       id: 'project',
       userId: 'user',
       name: 'Project',
-      workingDir: '/work/project',
+      workingDir: temp(),
       settings: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

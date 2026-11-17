@@ -32,7 +32,7 @@ registry, so a kind added to it fails to compile until every consumer gives it a
 | `chat.session`         | Chat writers; deletion of a tree, one notice per id          | Semantic index, usage ledger, session residue |
 | `chat.message`         | Inserts; edits, a turn's usage moving, the final flush       | Semantic index, usage ledger                  |
 | `provider.connection`  | Every connection or key change, deletion in its transaction  | Route repair, notifications cleanup, relay    |
-| `project`              | Created, moved, renamed, deleted, restored                   | Mini app hosts, relay                         |
+| `project`              | Created, renamed, deleted, restored                          | Mini app hosts, relay, session residue        |
 | `project.settings`     | A settings-only write, in its transaction                    | Relay                                         |
 | `user.profile`         | Interface settings written, in the profile's transaction     | Relay                                         |
 | `user.agent-settings`  | Agent settings written, in the profile's transaction         | Relay                                         |

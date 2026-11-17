@@ -1,6 +1,5 @@
 import { constants, type Stats } from 'node:fs'
-import { access, readdir, stat } from 'node:fs/promises'
-import path from 'node:path'
+import { access, stat } from 'node:fs/promises'
 
 import { ConflictError } from '../../lib/domain-errors'
 
@@ -15,8 +14,9 @@ import { ConflictError } from '../../lib/domain-errors'
  * a key (the ownership check, discovery of settings and plugins) does not ask: a missing folder has
  * no project files, which is the truthful answer there.
  *
- * Nothing is cached about a folder being gone. Each question stats the disk again, so a folder that
- * comes back (the disk is plugged in again, the rename is undone) works at once without a restart.
+ * Nothing is cached about a folder being gone. Each question stats the disk again. A PROJECT whose
+ * folder is gone is deleted with its chats (`folder-gone.ts`); this refusal is what the folders
+ * that are not a project's own say (a chat sandbox, a workflow worktree).
  */
 export type WorkspaceFolderState = 'present' | 'missing' | 'not_a_directory' | 'unreadable'
 
@@ -38,8 +38,8 @@ const REFUSAL: Record<Exclude<WorkspaceFolderState, 'present'>, { code: string; 
 /**
  * The project's folder is not usable (HTTP 409).
  *
- * A conflict, not a 404: the session and the project both exist; what conflicts is the path they
- * record and the disk. `detail` is the recorded path, which the client shows and offers to locate.
+ * A conflict, not a 404: the session exists; what conflicts is the path it records and the disk.
+ * `detail` is the recorded path.
  */
 export class WorkspaceFolderUnavailableError extends ConflictError {
   readonly state: Exclude<WorkspaceFolderState, 'present'>
@@ -48,22 +48,6 @@ export class WorkspaceFolderUnavailableError extends ConflictError {
     super(REFUSAL[state].code, `${REFUSAL[state].says}: ${dir}`, dir)
     this.state = state
   }
-}
-
-/**
- * What identifies a folder across a rename on its volume: `<device>:<inode>:<birth time>`.
- *
- * Stored with the project each time its folder is seen (`noteProjectFolder` in `relocate.ts`), so a
- * folder renamed while the app was closed is still recognised on the next start. A file system with
- * no birth time reports 0, and an inode reused by a new folder has a later birth time, unless that
- * folder is made within the file system's clock tick (a few milliseconds on Linux) of the first.
- */
-const identityOf = (info: Stats): string => `${info.dev}:${info.ino}:${info.birthtimeMs}`
-
-/** The identity of the folder at `dir`, or null when no folder is there. */
-export async function folderIdentity(dir: string): Promise<string | null> {
-  const info = await stat(dir).catch(() => null)
-  return info?.isDirectory() ? identityOf(info) : null
 }
 
 const denied = (error: unknown) => {
@@ -92,53 +76,4 @@ export async function workspaceFolderState(dir: string): Promise<WorkspaceFolder
 export async function assertWorkspaceFolder(dir: string): Promise<void> {
   const state = await workspaceFolderState(dir)
   if (state !== 'present') throw new WorkspaceFolderUnavailableError(state, dir)
-}
-
-/** How far the search for a moved folder looks: entries stat'ed in all. */
-const SEARCH_BUDGET = 2_000
-/** Folders the search never descends into: they are never a project's new home. */
-const SKIPPED = new Set(['node_modules', 'Library', 'Applications'])
-
-const isDirectory = async (dir: string) => (await stat(dir).catch(() => null))?.isDirectory()
-
-/**
- * Where the folder with `identity` went, when it can be told for certain: the same folder (same
- * device, inode and birth time) among the children and grandchildren of the nearest ancestor that
- * still exists. That covers a rename in place and a move under a renamed parent; a move across
- * disks makes a new folder and is not found.
- *
- * Never a guess by name or by repository: two clones of one repository share their root commit and
- * remote, and a folder of the same name is not the same folder. The caller offers the answer; it
- * never re-points a project on its own.
- */
-export async function suggestMovedFolder(
-  dir: string,
-  identity: string | null | undefined,
-): Promise<string | null> {
-  if (!identity || (await workspaceFolderState(dir)) !== 'missing') return null
-  let base = path.dirname(dir)
-  while (!(await isDirectory(base))) {
-    const up = path.dirname(base)
-    if (up === base) return null
-    base = up
-  }
-  let budget = SEARCH_BUDGET
-  let level = [base]
-  for (let depth = 0; depth < 2 && level.length > 0; depth++) {
-    const next: string[] = []
-    for (const parent of level) {
-      const entries = await readdir(parent, { withFileTypes: true }).catch(() => [])
-      for (const entry of entries) {
-        if (budget-- <= 0) return null
-        // A symlink is not followed: the folder itself is what moved, and a link may loop.
-        if (!entry.isDirectory()) continue
-        const candidate = path.join(parent, entry.name)
-        const info = await stat(candidate).catch(() => null)
-        if (info && identityOf(info) === identity) return candidate
-        if (!entry.name.startsWith('.') && !SKIPPED.has(entry.name)) next.push(candidate)
-      }
-    }
-    level = next
-  }
-  return null
 }

@@ -55,8 +55,16 @@ export function createStartPostListen(input: StartPostListenInput) {
           agentsService: input.agentsService,
           secretsStore: infra.secretsStore,
           notifications: infra.notifications,
-          sessionExists: async (...args) =>
-            Boolean(await infra.bootRepo.getSession(...args).catch(() => true)),
+          chats: {
+            sessionExists: async (...args) =>
+              Boolean(await infra.bootRepo.getSession(...args).catch(() => true)),
+            projectSessions: (...args) => infra.bootRepo.listSessionIdsOfProject(...args),
+            sessionsGone: (userId, sessionIds) =>
+              chatService.streamRegistry.publish(userId, '', {
+                type: 'session.deleted',
+                sessionIds: [...sessionIds],
+              }),
+          },
           providerConditions: infra.providerConditions,
           triggerConditions: input.triggerConditions,
           triggerEngine: input.triggerEngine,

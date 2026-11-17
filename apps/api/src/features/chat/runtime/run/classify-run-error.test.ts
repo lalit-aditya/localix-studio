@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 
+import { presentErrorInfo } from '@localixai/agent/agents'
+
+import { NotFoundError } from '../../../../lib/domain-errors'
 import { ActiveTurnTooLargeError, LocalContextBudgetExceededError } from '../context-budget'
 import { classifyRunError } from './classify-run-error'
 
@@ -45,5 +48,20 @@ describe('local context policy classification', () => {
       userMessage: error.message,
       retryable: false,
     })
+  })
+})
+
+describe('a refusal of the host itself', () => {
+  test('a chat whose project folder is gone says so in its own words, never "unexpected"', () => {
+    const error = new NotFoundError(
+      'session_not_found',
+      'The project folder is gone, so the project and its chats were removed: /Users/me/app',
+    )
+    const presented = presentErrorInfo(classifyRunError({}, 'u1', error))
+
+    expect(presented.reason).toBe(
+      'The project folder is gone, so the project and its chats were removed: /Users/me/app.',
+    )
+    expect(presented.actions).toEqual([])
   })
 })

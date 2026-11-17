@@ -222,17 +222,28 @@ test('a denied mini app tool, mini app and plugin are absent from the turn', asy
 })
 
 /**
- * A turn in a project whose folder was moved or deleted fails up front with the folder's own
- * words, instead of starting tools in a path that is not there.
+ * A turn that reaches a project whose folder was moved or deleted (from the queue, a trigger, a
+ * loop: no send went first) deletes the project with its chats and stops in those words, instead
+ * of starting tools in a path that is not there.
  */
-test('a turn in a project whose folder is gone fails with workspace_folder_missing', async () => {
+test('a turn in a project whose folder is gone deletes the project and stops', async () => {
   const home = await mkdtemp(join(tmpdir(), 'localix-run-gone-'))
   const gone = join(home, 'claude-plugin-kit')
+  const deleted: string[] = []
   try {
     const agentId = 'native:project:worker'
     const deps = {
       claudeHome: home,
-      projectsRepo: { getProject: async () => ({ workingDir: gone, settings: null }) },
+      projectsRepo: {
+        getProject: async () => ({
+          id: 'project',
+          userId: 'user',
+          workingDir: gone,
+          settings: null,
+          deletedAt: null,
+        }),
+        deleteProject: async (_userId: string, id: string) => void deleted.push(id),
+      },
       pluginRepo: {},
       contextSnapshots: createSessionSnapshotCache<FrozenSessionContext>(),
       promptSnapshots: snapshotStore(),
@@ -258,10 +269,11 @@ test('a turn in a project whose folder is gone fails with workspace_folder_missi
       agent: { approval: 'policy', definition, capabilities: composeCapabilities([]) },
     })
     await expect(prepared).rejects.toMatchObject({
-      status: 409,
-      code: 'workspace_folder_missing',
+      status: 404,
+      code: 'session_not_found',
       detail: gone,
     })
+    expect(deleted).toEqual(['project'])
   } finally {
     await rm(home, { recursive: true, force: true })
   }

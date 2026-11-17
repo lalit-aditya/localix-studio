@@ -14,8 +14,16 @@ import type { Problem } from '@localixai/mini-app-sdk/ui/problems'
 import { basenameOf } from './fileTreePaths'
 import { createUndoTokens, type UndoTokens } from './undoTokens'
 import { useTreeUndo } from './useTreeUndo'
-import { isWorkspaceFolderGone } from './MissingFolderNotice'
+import { ApiError } from '@/shared/api/failure'
 import type { TreeClipboard } from './useFileTree'
+
+/**
+ * The chat is gone: its project's folder went away, so the server deleted the project with its
+ * chats (404 `session_not_found`) and the roster drops this chat on the next poke. Nothing to
+ * report from the tree meanwhile.
+ */
+const isChatGone = (error: unknown): boolean =>
+  error instanceof ApiError && error.code === 'session_not_found'
 
 /* oxlint-disable react-hooks/exhaustive-deps -- refs/setters are stable; preserve the pre-split dependency lists exactly */
 
@@ -113,8 +121,6 @@ type UseDirectoryLoaderOptions = {
   setRefreshing: Dispatch<SetStateAction<boolean>>
   /** Whether disk changes reach the tree on their own — reported by every root/re-list read. */
   setLive: Dispatch<SetStateAction<boolean>>
-  /** The project's folder is gone: the pane shows the way back instead of a tree. */
-  setFolderGone: Dispatch<SetStateAction<boolean>>
   setSelected: Dispatch<SetStateAction<Selection>>
   setRevealRequest: Dispatch<SetStateAction<RevealRequest>>
 }
@@ -133,7 +139,6 @@ export function useDirectoryLoader({
   setError,
   setRefreshing,
   setLive,
-  setFolderGone,
   setSelected,
   setRevealRequest,
 }: UseDirectoryLoaderOptions) {
@@ -193,13 +198,11 @@ export function useDirectoryLoader({
         setRevealRequest(null)
         anchorRef.current = null
         setError(null)
-        setFolderGone(false)
         setLive(res.live === true)
       })
       .catch((e) => {
         if (!ownsSession() || treeEpochRef.current !== epoch) return
-        setFolderGone(isWorkspaceFolderGone(e))
-        if (!isWorkspaceFolderGone(e))
+        if (!isChatGone(e))
           setError({
             message: 'Could not read this workspace folder.',
             hint: 'Check that the folder still exists and that you can open it.',
@@ -252,9 +255,13 @@ export function useDirectoryLoader({
         setLive(res.live === true)
         return true
       } catch (e) {
-        // Not churn: the whole folder went away (the watcher's last word on it is this re-list).
-        if (isWorkspaceFolderGone(e) && ownsSession()) setFolderGone(true)
-        else if (!options?.quiet && ownsSession() && directoryReadIsCurrent(dirPath, token))
+        // A gone chat is not churn to report: it leaves with its project (`isChatGone`).
+        if (
+          !isChatGone(e) &&
+          !options?.quiet &&
+          ownsSession() &&
+          directoryReadIsCurrent(dirPath, token)
+        )
           toast.error(`Could not refresh “${basenameOf(dirPath)}”`, {
             description: [errorMessage(e, ''), 'The folder may still show its previous contents.']
               .filter(Boolean)
@@ -301,8 +308,7 @@ export function useDirectoryLoader({
           // Swallowed, this is indistinguishable from an empty folder: you click a directory and
           // nothing opens. The row stays childless (there is nothing truthful to show), but the
           // reason is now reachable instead of gone.
-          if (isWorkspaceFolderGone(e) && ownsSession()) setFolderGone(true)
-          else if (ownsSession() && directoryReadIsCurrent(path, token))
+          if (!isChatGone(e) && ownsSession() && directoryReadIsCurrent(path, token))
             toast.error(`Could not list “${basenameOf(path)}”`, {
               description: errorMessage(e, '') || undefined,
             })

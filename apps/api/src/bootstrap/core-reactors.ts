@@ -17,7 +17,7 @@ import { mcpOAuthStore } from '../features/mcp/oauth/runtime'
 import type { SecretsStore } from '../features/secrets/store-contracts'
 import { forgetSecretOptions } from '../features/plugins/config-vault'
 import { miniAppOptions } from '../features/mini-apps/config-vault'
-import { createSessionResidue } from '../features/chat/session-residue'
+import { createSessionResidue, type SessionResiduePorts } from '../features/chat/session-residue'
 import { createSubagentRowsChanges } from '../features/chat/service/subagent-rows-changes'
 import { createStatusLineChanges } from '../features/chat/service/status-line-changes'
 import type { StatusLine } from '../features/chat/service/status-line'
@@ -51,7 +51,7 @@ export interface CoreReactorDeps {
   agentsService: Pick<AgentsService, 'listAgents'>
   secretsStore: Pick<SecretsStore, 'unbindConsumer'>
   notifications: Pick<NotificationJournal, 'forgetSession' | 'repository'>
-  sessionExists(userId: string, sessionId: string): Promise<boolean>
+  chats: Pick<SessionResiduePorts, 'sessionExists' | 'projectSessions' | 'sessionsGone'>
   providerConditions: Pick<ProviderConditions, 'connectionRemoved' | 'connectionsRemaining'>
   triggerConditions: Pick<TriggerConditions, 'routeStranded' | 'ownerGone'>
   /** The loops an agent armed stop with it. */
@@ -183,7 +183,7 @@ export function notificationsCleanupHandlers(
 
 /**
  * What the mini app hosts (backends and channels) converge on: a mini app installed, updated or removed, a rule
- * that switches one on or off, or a project whose folder (so its project mini apps) moved.
+ * that switches one on or off, or a project (so its project mini apps) created, deleted or restored.
  */
 export function miniAppHostHandlers(refresh: () => void): ConsumerHandlers<CoreRefs, CoreCascades> {
   return {
@@ -249,7 +249,7 @@ export async function startCoreReactors(deps: CoreReactorDeps): Promise<void> {
     projectDirs: async (...args) =>
       (await deps.projectsService.listProjects(...args)).projects.map((p) => p.workingDir),
     inboxSessions: () => deps.notifications.repository.sessionsWithRows(),
-    sessionExists: (...args) => deps.sessionExists(...args),
+    ...deps.chats,
   })
   await deps.feed.subscribe('session-residue', residue.handlers, {
     kind: 'reactor',
