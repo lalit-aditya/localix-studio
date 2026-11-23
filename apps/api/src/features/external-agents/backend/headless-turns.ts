@@ -5,7 +5,7 @@
  * The turn's words reach the chat through the agent's transcript, which the chat already reads;
  * this only tracks whether a turn runs and why the last one failed.
  */
-import { ApiError } from '../../../lib/errors'
+import { ConflictError } from '../../../lib/domain-errors'
 
 /** A started turn process: its stdout lines, its exit, a way to end it early. */
 export interface TurnProcess {
@@ -72,7 +72,7 @@ export function createHeadlessTurns(deps: { spawn: TurnSpawn }) {
     /** Run one turn of the chat's agent. A chat runs one turn at a time. */
     start(sessionId: string, request: TurnRequest): void {
       if (running.has(sessionId))
-        throw new ApiError(409, 'agent_busy', 'The agent is still answering. Stop it first.')
+        throw new ConflictError('agent_busy', 'The agent is still answering. Stop it first.')
       errors.delete(sessionId)
       const process = deps.spawn(request.argv, {
         cwd: request.cwd,

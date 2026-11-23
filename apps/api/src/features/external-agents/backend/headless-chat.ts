@@ -5,7 +5,7 @@
  * agent, and the chat works the moment it is opened.
  */
 import { randomUUID } from 'node:crypto'
-import { ApiError } from '../../../lib/errors'
+import { InvalidRequestError, NotFoundError } from '../../../lib/domain-errors'
 import { linkKeyOf, parseLinkKey } from '../shared/identity'
 import type { InstalledExternalAgent } from '../installed'
 import { adapterFor } from './adapters/registry'
@@ -60,7 +60,7 @@ export function createHeadlessChat(host: HeadlessChatHost) {
     async prepare(userId: string, sessionId: string): Promise<{ providerName: string }> {
       const agent = await agentOf(userId, sessionId)
       if (!agent)
-        throw new ApiError(400, 'not_headless', 'This agent is chatted with in its terminal.')
+        throw new InvalidRequestError('not_headless', 'This agent is chatted with in its terminal.')
       await identity(userId, sessionId, agent)
       return { providerName: agent.adapter.displayName }
     },
@@ -72,14 +72,14 @@ export function createHeadlessChat(host: HeadlessChatHost) {
     ): Promise<void> {
       const agent = await agentOf(userId, sessionId)
       if (!agent)
-        throw new ApiError(400, 'not_headless', 'This agent is chatted with in its terminal.')
+        throw new InvalidRequestError('not_headless', 'This agent is chatted with in its terminal.')
       const mode = message.permissionMode
       if (mode && !agent.headless.permissionModes.includes(mode))
-        throw new ApiError(400, 'unknown_permission_mode', `Unknown permission mode: ${mode}`)
+        throw new InvalidRequestError('unknown_permission_mode', `Unknown permission mode: ${mode}`)
       const installed = (await host.installed()).find(
         (candidate) => candidate.id === agent.provider,
       )
-      if (!installed) throw new ApiError(404, 'agent_not_installed', 'This agent is not installed.')
+      if (!installed) throw new NotFoundError('agent_not_installed', 'This agent is not installed.')
       const id = await identity(userId, sessionId, agent)
       const resume = await host.transcriptExists(
         linkKeyOf({ provider: agent.provider, nativeSessionId: id }),
