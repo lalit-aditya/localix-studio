@@ -1,6 +1,12 @@
-import { useMemo, useState } from 'react'
-import { dayKey, type ActivityCell, type ActivityYear } from '../model/activityYear'
-import type { GitActivity } from '../model/useGitActivity'
+import { useEffect, useMemo, useState } from 'react'
+import type { ActivityCell, ActivityYear } from '../model/activityYear'
+
+export interface DayCommit {
+  hash: string
+  time: number
+  author: string
+  subject: string
+}
 
 /** Day-cell fill per level: a veil of the first chart colour, darker with more commits. */
 const LEVEL_FILL = [
@@ -27,9 +33,16 @@ function describe(cell: ActivityCell): string {
     : `${day}: no commits`
 }
 
-/** A year of commits as a grid of days; picking a day lists its commits under the grid. */
-export function ActivityHeatmap(props: { year: ActivityYear; commits: GitActivity['commits'] }) {
-  const { year, commits } = props
+/**
+ * A year of commits as a grid of days; picking a day lists its commits under the grid. The grid
+ * holds counts only: a picked day's commits are read for that day (`readDay`, local midnight to
+ * the next).
+ */
+export function ActivityHeatmap(props: {
+  year: ActivityYear
+  readDay: (from: number, to: number) => Promise<DayCommit[]>
+}) {
+  const { year, readDay } = props
   const [selected, setSelected] = useState<string | null>(null)
   const weeks = year.monthLabels.length
   const columns = useMemo(
@@ -37,9 +50,22 @@ export function ActivityHeatmap(props: { year: ActivityYear; commits: GitActivit
     [year, weeks],
   )
   const selectedCell = selected ? year.cells.find((cell) => cell.key === selected) : undefined
-  const dayCommits = selectedCell
-    ? commits.filter((commit) => dayKey(commit.time) === selectedCell.key)
-    : []
+  const [day, setDay] = useState<{ key: string; commits: DayCommit[] } | null>(null)
+  const selectedDate = selectedCell?.date
+  useEffect(() => {
+    if (selected === null || selectedDate === undefined) return
+    let current = true
+    const next = new Date(selectedDate)
+    next.setDate(next.getDate() + 1)
+    readDay(selectedDate, next.getTime()).then(
+      (commits) => current && setDay({ key: selected, commits }),
+      () => current && setDay({ key: selected, commits: [] }),
+    )
+    return () => {
+      current = false
+    }
+  }, [selected, selectedDate, readDay])
+  const dayCommits = day && day.key === selected ? day.commits : []
 
   return (
     <div className="space-y-3">

@@ -27,12 +27,21 @@ test('picking a day on the grid lists that day’s commits, and picking it again
   const { buildActivityYear } = await import('../model/activityYear')
   const { ActivityHeatmap } = await import('./ActivityHeatmap')
   const commits = [commit('b', 12, 'feat: add search'), commit('a', 10, 'fix: login')]
+  // The grid holds counts only; a picked day's commits are read for that day's span.
+  const asked: string[] = []
+  const readDay = async (from: number, to: number) => {
+    asked.push(`${new Date(from).getDate()}-${new Date(to).getDate()}`)
+    return commits.filter((c) => c.time >= from && c.time < to)
+  }
   const host = document.createElement('div')
   document.body.appendChild(host)
   const root = createRoot(host)
   await act(async () => {
     root.render(
-      React.createElement(ActivityHeatmap, { year: buildActivityYear(commits, NOW), commits }),
+      React.createElement(ActivityHeatmap, {
+        year: buildActivityYear({ '2024-06-12': 1, '2024-06-10': 1 }, NOW),
+        readDay,
+      }),
     )
   })
 
@@ -44,6 +53,7 @@ test('picking a day on the grid lists that day’s commits, and picking it again
   expect(day?.getAttribute('aria-selected')).toBe('true')
   expect(host.textContent).toContain('feat: add search')
   expect(host.textContent).not.toContain('fix: login')
+  expect(asked).toEqual(['12-13'])
 
   await act(async () => day?.click())
   expect(host.textContent).not.toContain('feat: add search')

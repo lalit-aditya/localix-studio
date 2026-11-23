@@ -13,6 +13,7 @@ import type { loadEnv } from '../lib/env'
 import type { createLogger } from '../lib/logger'
 import { buildLocalModels, localProviderHost } from './local-models'
 import { createOllamaModels } from '../features/local-models/ollama'
+import { whichBinary } from '../features/agent-core/tools/environments/shell'
 
 export function buildAgentEngine(deps: {
   logger: ReturnType<typeof createLogger>
@@ -20,9 +21,10 @@ export function buildAgentEngine(deps: {
   announceLocalModel?: Parameters<typeof buildLocalModels>[0]['announce']
 }) {
   const { logger, env } = deps
-  // An Ollama already running on this computer: its chat models are local models too.
+  // An Ollama already running on this computer: its chat models are local models too. Where it is
+  // not installed it is never asked.
   const ollama = createOllamaModels()
-  ollama.start()
+  ollama.start({ installed: () => Boolean(whichBinary('ollama')) })
   const localModels = buildLocalModels({
     logger,
     root: env.LOCALIX_MODELS_DIR,

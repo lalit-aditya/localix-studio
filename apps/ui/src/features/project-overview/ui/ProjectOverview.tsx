@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { Button } from '@localixai/kit/button'
 import { SectionHeading } from '@localixai/kit/section-heading'
@@ -6,6 +6,7 @@ import { StatCard } from '@localixai/kit/stat'
 import { LoadingHint } from '@localixai/kit/empty-hint'
 import { useChatStore } from '@/entities/chat/model/store'
 import { useUiNavigation } from '@/shared/hooks/useUiNavigation'
+import { backendClient } from '@/shared/api/client'
 import { buildActivityYear } from '../model/activityYear'
 import { useGitActivity } from '../model/useGitActivity'
 import { ActivityHeatmap } from './ActivityHeatmap'
@@ -15,10 +16,14 @@ const SECTION = 'space-y-3 rounded-md border border-border-faint bg-foreground/[
 
 function GitActivitySection({ projectId }: { projectId: string }) {
   const { state, reload } = useGitActivity(projectId)
+  const readDay = useCallback(
+    (from: number, to: number) => backendClient.gitDay(projectId, from, to),
+    [projectId],
+  )
   // The grid ends on the day the page opened; Refresh re-reads the history, not the clock.
   const [now] = useState(() => Date.now())
   const year = useMemo(
-    () => (state.status === 'ready' ? buildActivityYear(state.activity.commits, now) : null),
+    () => (state.status === 'ready' ? buildActivityYear(state.activity.days, now) : null),
     [state, now],
   )
   const body = () => {
@@ -50,7 +55,7 @@ function GitActivitySection({ projectId }: { projectId: string }) {
             hint={year.stats.busiest?.key ?? 'nothing yet'}
           />
         </div>
-        <ActivityHeatmap year={year} commits={activity.commits} />
+        <ActivityHeatmap year={year} readDay={readDay} />
         {activity.truncated ? (
           <p className="text-2xs text-text-soft">Only the most recent commits are shown.</p>
         ) : null}

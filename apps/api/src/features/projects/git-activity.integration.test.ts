@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { runSync, scratchGitEnv, tempDirPerTest } from '@localixai/testing'
 
-import { readGitActivity } from './git-activity'
+import { readGitActivity, readGitDay } from './git-activity'
 import type { GitRunner } from '../../lib/git-in'
 
 const dir = tempDirPerTest('git-activity-')
@@ -28,10 +28,14 @@ test('reads the commits of a real repository and nothing from a plain folder', a
     expect(runSync('git', ['add', '.'], { cwd: repo, env }).code).toBe(0)
     expect(runSync('git', ['commit', '--quiet', '-m', subject], { cwd: repo, env }).code).toBe(0)
   }
-  const activity = await readGitActivity(gitAt(repo), { now: Date.now() + 60_000, days: 365 })
+  const now = Date.now() + 60_000
+  const activity = await readGitActivity(gitAt(repo), { now, days: 365, timeZone: 'UTC' })
   expect(activity.repository).toBe(true)
-  expect(activity.commits.map((commit) => commit.subject)).toEqual(['second', 'first'])
-  expect(await readGitActivity(gitAt(plain), { now: Date.now(), days: 365 })).toMatchObject({
+  expect(Object.values(activity.days).reduce((sum, count) => sum + count, 0)).toBe(2)
+  const day = await readGitDay(gitAt(repo), { from: now - 3_600_000, to: now })
+  expect(day.commits.map((commit) => commit.subject)).toEqual(['second', 'first'])
+  const plainActivity = await readGitActivity(gitAt(plain), { now, days: 365, timeZone: 'UTC' })
+  expect(plainActivity).toMatchObject({
     repository: false,
   })
 })

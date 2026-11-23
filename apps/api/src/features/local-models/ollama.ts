@@ -23,6 +23,10 @@ const COPY_SUFFIX = '-localix32k'
 /** Every copy Localix made, whatever context it was made with: never listed as a model. */
 const COPY_MARK = '-localix'
 const CREATE_TIMEOUT_MS = 120_000
+/** How often a running Ollama's list is read again: a model pulled or removed shows within it. */
+const POLL_MS = 15_000
+/** The longest wait between asks of an Ollama that is installed but not running. */
+const MAX_POLL_MS = 300_000
 
 /** Localix's copy of `name`: the same model, made with room for an agent's prompt. */
 export function localixCopyOf(name: string): string {
@@ -63,7 +67,10 @@ export function createOllamaModels(options: { baseUrl?: string; fetch?: Fetch } 
   let present = new Set<string>()
   /** Listed id → the model it is a copy of, and the context it is made with. */
   const sources = new Map<string, { from: string; context: number }>()
-  let timer: ReturnType<typeof setInterval> | undefined
+  /** Ends the polling `start` began: its pending timer, and the read after it. */
+  let stopPolling: (() => void) | undefined
+  /** Whether the last read reached the server. */
+  let reachable = false
 
   const ask = async (path: string, init?: RequestInit) => {
     const response = await fetchImpl(`${baseUrl}${path}`, {
@@ -99,6 +106,7 @@ export function createOllamaModels(options: { baseUrl?: string; fetch?: Fetch } 
       const names = (Array.isArray(tags.models) ? tags.models : [])
         .map((entry) => (entry as { name?: unknown }).name)
         .filter((name): name is string => typeof name === 'string')
+      reachable = true
       present = new Set(names)
       const listed: OllamaChatModel[] = []
       for (const name of names) {
@@ -111,7 +119,8 @@ export function createOllamaModels(options: { baseUrl?: string; fetch?: Fetch } 
           sources.set(id, { from: name, context })
           listed.push({
             id,
-            name: `${name} (Ollama)`,
+            // Says it runs as Localix's copy, which Ollama lists beside the original.
+            name: `${name} (Ollama, 32K copy)`,
             contextWindow: context,
             vision: model.vision,
             tools: model.tools,
@@ -121,6 +130,7 @@ export function createOllamaModels(options: { baseUrl?: string; fetch?: Fetch } 
       return listed
     } catch {
       // Not running: nothing to list.
+      reachable = false
       return []
     }
   }
@@ -130,8 +140,12 @@ export function createOllamaModels(options: { baseUrl?: string; fetch?: Fetch } 
     has: (id: string) => models.some((model) => model.id === id),
     /** Localix's copy exists in Ollama, so a run can use it now. */
     isReady: (id: string) => present.has(id),
-    /** Make Localix's copy of the model in Ollama: the same weights, with the agent's context. */
-    async ensure(id: string): Promise<void> {
+    /**
+     * Make Localix's copy of the model in Ollama: the same weights, with the agent's context. The
+     * copy stays in Ollama (`ollama list` shows it; `ollama rm` removes it) so the next run starts
+     * at once. `signal` is the run's: a cancelled run stops the making.
+     */
+    async ensure(id: string, signal?: AbortSignal): Promise<void> {
       if (present.has(id)) return
       const source = sources.get(id)
       if (!source) throw new Error(`Ollama no longer serves the model behind ${id}.`)
@@ -144,7 +158,9 @@ export function createOllamaModels(options: { baseUrl?: string; fetch?: Fetch } 
           parameters: { num_ctx: source.context },
           stream: false,
         }),
-        signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(CREATE_TIMEOUT_MS)])
+          : AbortSignal.timeout(CREATE_TIMEOUT_MS),
       })
       if (!response.ok)
         throw new Error(`Ollama could not prepare ${source.from} (HTTP ${response.status}).`)
@@ -162,16 +178,47 @@ export function createOllamaModels(options: { baseUrl?: string; fetch?: Fetch } 
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
-    /** Keep the list current while the app runs: a model pulled or removed shows within a beat. */
-    start(intervalMs = 15_000): void {
-      if (timer) return
-      void this.refresh()
-      timer = setInterval(() => void this.refresh(), intervalMs)
-      timer.unref?.()
+    /**
+     * Keep the list current while the app runs. A computer without Ollama installed is never
+     * asked; one where it is installed but not running is asked less and less often, back to the
+     * beat once it answers.
+     */
+    start(
+      options: {
+        intervalMs?: number
+        maxIntervalMs?: number
+        installed?: () => boolean
+        schedule?: (run: () => void, ms: number) => () => void
+      } = {},
+    ): void {
+      if (stopPolling || (options.installed && !options.installed())) return
+      const interval = options.intervalMs ?? POLL_MS
+      const longest = options.maxIntervalMs ?? MAX_POLL_MS
+      const schedule =
+        options.schedule ??
+        ((run: () => void, ms: number) => {
+          const timer = setTimeout(run, ms)
+          timer.unref?.()
+          return () => clearTimeout(timer)
+        })
+      let delay = interval
+      let stopped = false
+      let cancel = () => {}
+      const poll = async () => {
+        await this.refresh()
+        if (stopped) return
+        delay = reachable ? interval : Math.min(delay * 2, longest)
+        cancel = schedule(() => void poll(), delay)
+      }
+      stopPolling = () => {
+        stopped = true
+        cancel()
+      }
+      void poll()
     },
     stop(): void {
-      if (timer) clearInterval(timer)
-      timer = undefined
+      stopPolling?.()
+      stopPolling = undefined
     },
   }
 }

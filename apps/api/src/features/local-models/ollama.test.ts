@@ -6,11 +6,11 @@ import { createOllamaModels } from './ollama'
 function ollama(models: Record<string, { capabilities: string[]; context?: number }>) {
   const calls: string[] = []
   const created: unknown[] = []
-  const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input)
+  const fetchImpl = async (input: string, init?: RequestInit) => {
+    const url = input
     calls.push(url)
     if (url.endsWith('/api/create')) {
-      const body = JSON.parse(String(init?.body)) as { model: string; from: string }
+      const body = JSON.parse(init?.body as string) as { model: string; from: string }
       created.push(body)
       models[body.model] = models[body.from]!
       return Response.json({ status: 'success' })
@@ -18,7 +18,7 @@ function ollama(models: Record<string, { capabilities: string[]; context?: numbe
     if (url.endsWith('/api/tags'))
       return Response.json({ models: Object.keys(models).map((name) => ({ name, model: name })) })
     if (url.endsWith('/api/show')) {
-      const name = JSON.parse(String(init?.body)).model as string
+      const name = JSON.parse(init?.body as string).model as string
       const model = models[name]!
       return Response.json({
         capabilities: model.capabilities,
@@ -43,7 +43,7 @@ describe('Ollama models on this computer', () => {
     expect(models.list()).toEqual([
       {
         id: 'gemma4:e4b-it-qat-localix32k',
-        name: 'gemma4:e4b-it-qat (Ollama)',
+        name: 'gemma4:e4b-it-qat (Ollama, 32K copy)',
         contextWindow: 32768,
         vision: true,
         tools: true,
@@ -110,4 +110,76 @@ test('the first use makes Localixâ€™s copy of the model with room for the agentâ
   expect(models.list().find((model) => model.id === 'small:latest-localix32k')?.contextWindow).toBe(
     2048,
   )
+})
+
+test('a run cancelled while its copy is being made stops the making', async () => {
+  const server = ollama({ 'gemma4:e4b-it-qat': { capabilities: ['completion', 'tools'] } })
+  let seen: AbortSignal | undefined
+  const models = createOllamaModels({
+    fetch: async (input, init) => {
+      if (input.endsWith('/api/create')) {
+        seen = init?.signal ?? undefined
+        throw new DOMException('aborted', 'AbortError')
+      }
+      return server.fetchImpl(input, init)
+    },
+  })
+  await models.refresh()
+  const run = new AbortController()
+  run.abort()
+  await expect(models.ensure('gemma4:e4b-it-qat-localix32k', run.signal)).rejects.toThrow()
+  expect(seen?.aborted).toBe(true)
+})
+
+describe('how often Ollama is asked', () => {
+  /** Timers handed to the poller, run by hand: no test waits on a clock. */
+  function timers() {
+    const delays: number[] = []
+    let next: (() => void) | undefined
+    const schedule = (run: () => void, ms: number) => {
+      delays.push(ms)
+      next = run
+      return () => {}
+    }
+    const tick = async () => {
+      const run = next
+      next = undefined
+      run?.()
+      for (let i = 0; i < 20; i++) await Promise.resolve()
+    }
+    return { delays, schedule, tick }
+  }
+
+  test('a computer without Ollama installed is never asked', async () => {
+    const asked: string[] = []
+    const clock = timers()
+    const models = createOllamaModels({
+      fetch: async (input) => {
+        asked.push(input)
+        return Response.json({ models: [] })
+      },
+    })
+    models.start({ installed: () => false, schedule: clock.schedule })
+    await clock.tick()
+    expect(asked).toEqual([])
+    expect(clock.delays).toEqual([])
+  })
+
+  test('an Ollama that is not running is asked less and less often, and at the beat once it runs', async () => {
+    let running = false
+    const clock = timers()
+    const models = createOllamaModels({
+      fetch: async () => {
+        if (!running) throw new Error('connection refused')
+        return Response.json({ models: [] })
+      },
+    })
+    models.start({ intervalMs: 1000, maxIntervalMs: 5000, schedule: clock.schedule })
+    for (let i = 0; i < 4; i++) await clock.tick()
+    expect(clock.delays).toEqual([2000, 4000, 5000, 5000])
+    running = true
+    await clock.tick()
+    expect(clock.delays.at(-1)).toBe(1000)
+    models.stop()
+  })
 })

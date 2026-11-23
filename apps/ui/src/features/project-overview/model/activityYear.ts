@@ -67,8 +67,9 @@ function streaks(past: ActivityCell[]): { current: number; longest: number } {
   return { current, longest }
 }
 
+/** `days`: commits per day, keyed `YYYY-MM-DD` in local time, as the API counts them. */
 export function buildActivityYear(
-  commits: readonly { time: number }[],
+  days: Readonly<Record<string, number>>,
   now: number,
   weeks: number = ACTIVITY_WEEKS,
 ): ActivityYear {
@@ -85,10 +86,9 @@ export function buildActivityYear(
   const inGrid = new Set(dates.map((date) => dayKey(date.getTime())))
   const todayKey = dayKey(today.getTime())
   const counts = new Map<string, number>()
-  for (const commit of commits) {
-    const key = dayKey(commit.time)
+  for (const [key, count] of Object.entries(days)) {
     if (!inGrid.has(key) || key > todayKey) continue
-    counts.set(key, (counts.get(key) ?? 0) + 1)
+    counts.set(key, count)
   }
   const max = Math.max(0, ...counts.values())
 

@@ -75,7 +75,7 @@ export function localProviderHost(
       localModels.isInstalled(modelId) || (ollama?.isReady(modelId) ?? false),
     whenReady: (modelId, signal) => {
       // An Ollama model: its first use makes Localix's copy with room for the agent's prompt.
-      if (ollama?.has(modelId)) return ollama.ensure(modelId)
+      if (ollama?.has(modelId)) return ollama.ensure(modelId, signal)
       const label = localModels.installed().find((s) => s.id === modelId)?.label
       return localModels.whenReady(modelId, label ?? modelId, signal)
     },
