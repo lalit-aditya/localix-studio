@@ -76,3 +76,43 @@ test("the agent's turns read as a chat and Enter sends the message to the agent"
   await view.act(async () => view.root.unmount())
   view.host.remove()
 })
+
+test('while the agent waits on a question, a message is held: its Enter would answer the question', async () => {
+  const React = await import('react')
+  const { act } = React
+  const { createRoot } = await import('react-dom/client')
+  const { AgentChatPanel } = await import('./AgentChatPanel')
+  const sent: string[] = []
+  const host = document.createElement('div')
+  document.body.appendChild(host)
+  const root = createRoot(host)
+  await act(async () => {
+    root.render(
+      React.createElement(AgentChatPanel, {
+        providerName: 'Claude Code',
+        transcript: null,
+        prompt: React.createElement('p', null, 'Do you trust this folder?'),
+        held: 'Answer Claude Code’s question first.',
+        onSend: async (text: string) => {
+          sent.push(text)
+        },
+        onShowTerminal: () => {},
+      }),
+    )
+  })
+  expect(host.textContent).toContain('Do you trust this folder?')
+  expect(host.textContent).toContain('Answer Claude Code’s question first.')
+  const box = host.querySelector('textarea') as HTMLTextAreaElement
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(box, 'hi')
+    box.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await act(async () => {
+    box.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+    )
+  })
+  expect(sent).toEqual([])
+  await act(async () => root.unmount())
+  host.remove()
+})

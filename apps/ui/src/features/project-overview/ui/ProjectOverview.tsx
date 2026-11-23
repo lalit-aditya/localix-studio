@@ -11,7 +11,7 @@ import { useGitActivity } from '../model/useGitActivity'
 import { ActivityHeatmap } from './ActivityHeatmap'
 import { DiagramCard } from './DiagramCard'
 
-const SECTION = 'space-y-3 rounded-md border border-border/60 bg-foreground/[0.02] p-4'
+const SECTION = 'space-y-3 rounded-md border border-border-faint bg-foreground/[0.02] p-4'
 
 function GitActivitySection({ projectId }: { projectId: string }) {
   const { state, reload } = useGitActivity(projectId)

@@ -3,10 +3,10 @@ import { IS_WINDOWS, isDesktop } from '@localixai/kit/environment'
 import { tauriInvoke, type InvokeFn } from '@/shared/lib/tauri'
 
 const BUTTONS = [
-  { command: 'window_close', label: 'Close window', fill: 'bg-status-error', Glyph: X },
-  { command: 'window_minimize', label: 'Minimize window', fill: 'bg-status-warning', Glyph: Minus },
+  { action: 'close', label: 'Close window', fill: 'bg-status-error', Glyph: X },
+  { action: 'minimize', label: 'Minimize window', fill: 'bg-status-warning', Glyph: Minus },
   {
-    command: 'window_toggle_maximize',
+    action: 'toggle_maximize',
     label: 'Maximize window',
     fill: 'bg-status-success',
     Glyph: Plus,
@@ -25,13 +25,13 @@ export function WindowControls({ invoke }: { invoke: InvokeFn }) {
       aria-label="Window"
       className="group/lights ml-1 flex shrink-0 items-center gap-2 px-1"
     >
-      {BUTTONS.map(({ command, label, fill, Glyph }) => (
+      {BUTTONS.map(({ action, label, fill, Glyph }) => (
         <button
-          key={command}
+          key={action}
           type="button"
           aria-label={label}
           title={label}
-          onClick={() => void invoke(command).catch(() => {})}
+          onClick={() => void invoke('window_control', { action }).catch(() => {})}
           className={`${fill} flex size-3 items-center justify-center rounded-full outline-none focus-ring`}
         >
           <Glyph

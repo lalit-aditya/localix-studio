@@ -448,9 +448,7 @@ pub fn run() {
             crate::app_bundle_commands::mini_app_uninstall,
             #[cfg(target_os = "macos")]
             crate::titlebar_double_click::titlebar_double_click,
-            crate::window_controls::window_minimize,
-            crate::window_controls::window_toggle_maximize,
-            crate::window_controls::window_close,
+            crate::window_controls::window_control,
             #[cfg(all(debug_assertions, target_os = "macos"))]
             crate::workspace_probe::workspace_probe
         ])

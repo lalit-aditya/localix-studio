@@ -1,4 +1,5 @@
 import { TOOL } from '../../agent-core/tool-names'
+import { randomUUID } from 'node:crypto'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { shellQuote, type HostRouteContext } from '@localixai/mini-app-sdk/backend'
@@ -19,10 +20,12 @@ export interface OwnedSessionHost {
   ): Promise<{ externalAgentProvider?: string | null; externalAgentSessionKey?: string | null }>
   cwd(userId: string, sessionId: string): Promise<string>
   terminals(userId: string): { id: string; chatSessionId?: string | null; command?: string }[]
+  /** `env` layers over the terminal's environment; a name set to `undefined` is removed. */
   spawn(
     userId: string,
     sessionId: string,
     command: string,
+    options?: { env?: Record<string, string | undefined> },
   ): Promise<{ id: string; onExit?: (listener: (code: number) => void) => unknown }>
   reportError?: (error: unknown) => void
   remember(userId: string, sessionId: string, key: string): Promise<unknown>
@@ -53,15 +56,36 @@ function withMcpServers(
   servers: Record<string, McpServerConfig>,
 ): string {
   if (provider !== 'claude-code' || Object.keys(servers).length === 0) return command
-  const [program, ...rest] = command.split(' ')
+  const words = command.split(' ')
+  // After the `claude` word, not the first one: a resumed session starts `cd -- '<dir>' && claude`.
+  const program = words.findIndex((word) => word.slice(word.lastIndexOf('/') + 1) === 'claude')
+  if (program < 0) return command
   return [
-    program,
+    ...words.slice(0, program + 1),
     '--mcp-config',
     shellQuote(JSON.stringify({ mcpServers: servers })),
     '--append-system-prompt',
     shellQuote(BOARD_INSTRUCTION),
-    ...rest,
+    ...words.slice(program + 1),
   ].join(' ')
+}
+
+/** The running terminal of this chat's agent, ignoring the other programs the chat runs. */
+export function agentTerminalOf(
+  host: Pick<OwnedSessionHost, 'terminals'>,
+  agents: AgentSessionsService | undefined,
+  userId: string,
+  sessionId: string,
+  provider: string,
+) {
+  return host
+    .terminals(userId)
+    .find(
+      (terminal) =>
+        terminal.chatSessionId === sessionId &&
+        (agents?.live.get(terminal.id)?.provider === provider ||
+          detectLaunchKind(terminal.command) === provider),
+    )
 }
 
 /** Only a persisted Localix session can own this action; machine-wide history is never the roster. */
@@ -78,67 +102,86 @@ export function createOwnedAgentRoutes(
       throw new ApiError(400, 'not_external_session', 'This session has no external agent.')
     const agent = (await installed()).find((candidate) => candidate.id === provider)
     if (!agent) throw new ApiError(404, 'agent_not_installed', 'This agent is not installed.')
-    const existing = host
-      .terminals(userId)
-      .find(
-        (terminal) =>
-          terminal.chatSessionId === sessionId &&
-          (agents?.live.get(terminal.id)?.provider === provider ||
-            detectLaunchKind(terminal.command) === provider),
-      )
+    const existing = agentTerminalOf(host, agents, userId, sessionId, provider)
     if (existing) return { terminalId: existing.id, providerName: agent.name }
+    const adapter = adapterFor(provider)
+    let key = session.externalAgentSessionKey ?? null
+    // A conversation never identified has nothing to resume. An agent that can start under a
+    // chosen id starts a new one, rather than leaving the chat unusable.
+    if (key && isPendingKey(key) && adapter?.startCommand) key = null
     let command = agent.command
-    if (session.externalAgentSessionKey) {
-      if (isPendingKey(session.externalAgentSessionKey))
+    /** The native session this terminal is known to run from launch, when it is known. */
+    let native: string | undefined
+    /** A new native id, saved on the chat as soon as its terminal is running. */
+    let chosen: string | undefined
+    if (key) {
+      if (isPendingKey(key))
         throw new ApiError(
           409,
           'native_identity_unavailable',
           'The saved agent session has not been identified yet. Your Localix chat is still available.',
         )
-      const identity = parseLinkKey(session.externalAgentSessionKey)
+      const identity = parseLinkKey(key)
       const resume =
         identity?.provider === provider
-          ? adapterFor(provider)?.resumeCommand?.(identity.nativeSessionId)
+          ? adapter?.resumeCommand?.(identity.nativeSessionId)
           : undefined
-      if (!resume)
+      if (!identity || !resume)
         throw new ApiError(
           409,
           'resume_unavailable',
           'This agent cannot resume the saved native session.',
         )
       command = resume
+      native = identity.nativeSessionId
       if (agents) {
-        const resolved = await agents.resume(session.externalAgentSessionKey)
-        if (!resolved?.resume)
+        const resolved = await agents.resume(key)
+        if (resolved?.resume) command = resolved.resume.command
+        // Linked at launch, but no message was ever sent: there is no transcript to resume, and
+        // the conversation starts under the id the chat already holds.
+        else if (adapter?.startCommand) command = adapter.startCommand(identity.nativeSessionId)
+        else
           throw new ApiError(
             404,
             'native_session_missing',
             'The saved native session is no longer available.',
           )
-        command = resolved.resume.command
       }
+    } else if (adapter?.startCommand) {
+      chosen = randomUUID()
+      native = chosen
+      command = adapter.startCommand(chosen)
     }
     const servers = (await host.mcpServers?.(userId, sessionId, origin)) ?? {}
     command = withMcpServers(provider, command, servers)
     const cwd = await host.cwd(userId, sessionId)
-    const terminal = await host.spawn(userId, sessionId, command)
-    if (!session.externalAgentSessionKey)
-      await host.remember(userId, sessionId, pendingKeyFor(provider, terminal.id))
+    const unset = adapter?.parentSessionEnv ?? []
+    const terminal = await host.spawn(
+      userId,
+      sessionId,
+      command,
+      unset.length ? { env: Object.fromEntries(unset.map((name) => [name, undefined])) } : {},
+    )
+    if (chosen)
+      await host.remember(userId, sessionId, linkKeyOf({ provider, nativeSessionId: chosen }))
+    else if (!key) await host.remember(userId, sessionId, pendingKeyFor(provider, terminal.id))
     if (agents) {
       terminal.onExit?.(() => agents.live.close(terminal.id))
-      const unsubscribe = agents.live.onChange((entry) => {
-        if (entry.terminalId !== terminal.id) return
-        if (entry.nativeSessionId) {
-          unsubscribe()
-          void host
-            .remember(
-              userId,
-              sessionId,
-              linkKeyOf({ provider, nativeSessionId: entry.nativeSessionId }),
-            )
-            .catch((error) => host.reportError?.(error))
-        } else if (entry.closed) unsubscribe()
-      })
+      if (!native) {
+        const unsubscribe = agents.live.onChange((entry) => {
+          if (entry.terminalId !== terminal.id) return
+          if (entry.nativeSessionId) {
+            unsubscribe()
+            void host
+              .remember(
+                userId,
+                sessionId,
+                linkKeyOf({ provider, nativeSessionId: entry.nativeSessionId }),
+              )
+              .catch((error) => host.reportError?.(error))
+          } else if (entry.closed) unsubscribe()
+        })
+      }
       agents.handleToolCall({
         toolName: TOOL.Bash,
         sessionId,
@@ -152,9 +195,7 @@ export function createOwnedAgentRoutes(
           },
         },
       })
-      const native =
-        session.externalAgentSessionKey && parseLinkKey(session.externalAgentSessionKey)
-      if (native) agents.live.adopt(terminal.id, native.nativeSessionId)
+      if (native) agents.live.adopt(terminal.id, native)
     }
     return { terminalId: terminal.id, providerName: agent.name }
   }

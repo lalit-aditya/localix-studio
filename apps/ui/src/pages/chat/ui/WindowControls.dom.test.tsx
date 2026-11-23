@@ -24,8 +24,8 @@ test('the three window buttons close, minimize and maximize the window, in that 
   await act(async () => {
     root.render(
       React.createElement(WindowControls, {
-        invoke: async (command: string) => {
-          calls.push(command)
+        invoke: async (command: string, args?: Record<string, unknown>) => {
+          calls.push(`${command}:${String(args?.action)}`)
           return undefined
         },
       }),
@@ -38,7 +38,11 @@ test('the three window buttons close, minimize and maximize the window, in that 
     'Maximize window',
   ])
   for (const button of buttons) await act(async () => button.click())
-  expect(calls).toEqual(['window_close', 'window_minimize', 'window_toggle_maximize'])
+  expect(calls).toEqual([
+    'window_control:close',
+    'window_control:minimize',
+    'window_control:toggle_maximize',
+  ])
   // The buttons are never part of the drag strip, or a press would drag instead of click.
   expect(host.firstElementChild?.getAttribute('data-tauri-drag-region')).toBe('false')
   await act(async () => root.unmount())

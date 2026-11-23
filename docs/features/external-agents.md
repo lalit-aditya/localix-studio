@@ -55,6 +55,25 @@ as a tab beside the chat when its full screen is wanted. Linking keeps the same 
 draft; it creates no second chat and imports no external transcript. The Localix composer remains
 available in the chat's tab.
 
+Claude Code starts under a session id Localix chooses (`--session-id`), so the chat knows its
+conversation from launch, before the first message is written. Variables a parent Claude Code
+session sets (`CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION` and the like) are removed from its terminal:
+inherited, they would make it a child session that saves no transcript, and the chat would show no
+reply.
+
+Whatever the agent's terminal asks besides the conversation shows above the message box as **Claude
+Code is asking**: folder trust, a tool permission, a login method or code. Each answer is a button,
+the one Enter would give is marked, and **Cancel (Esc)** and the arrow and Enter keys are beside
+them. While a question is open the message box holds the message, because its Enter would answer the
+question with the highlighted answer (Claude Code's folder trust highlights **No, exit**). A sign-in
+link opens with **Open sign-in page**; a code it asks for is typed in the message box. When the
+agent exits, the chat says so and **Start Claude Code** starts it again in the same conversation.
+
+Beside **Show terminal** the chat shows who Claude Code is signed in as (`claude auth status`).
+**Log out** stops the agent and runs `claude auth logout`; **Log in** stops it and runs
+`claude auth login` in the chat's terminal, whose questions show in the chat as above. Start Claude
+Code again afterwards to continue.
+
 Claude Code starts connected to the chat's task board over MCP when the Kanban board mini app is
 installed: Localix passes the board's endpoint for that chat in `--mcp-config` (as the
 `localix-board` server, one `kanban` tool) and asks Claude, in `--append-system-prompt`, to keep the

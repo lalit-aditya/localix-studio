@@ -3,7 +3,10 @@ import { createOwnedAgentRoutes } from '../features/external-agents/backend/owne
 import { recordTerminalWork } from '../features/terminal/terminal-work'
 import { createAttachAgentRoutes } from '../features/external-agents/backend/attach-session-routes'
 import { createLinkAgentRoutes } from '../features/external-agents/backend/link-session-routes'
+import { createOwnedScreenRoutes } from '../features/external-agents/backend/owned-screen-routes'
+import { createAgentAccountRoutes } from '../features/external-agents/backend/agent-account-routes'
 import { agentMcpServers } from './agent-mcp-servers'
+import { runAgentProgram } from './agent-program'
 
 export function ownedAgentRoutes(
   deps: Pick<
@@ -11,20 +14,29 @@ export function ownedAgentRoutes(
     'chatService' | 'terminalService' | 'work' | 'externalAgents' | 'logger' | 'projectsService'
   >,
 ) {
+  const session = (userId: string, sessionId: string) =>
+    deps.chatService.getSession(userId, sessionId)
+  const terminals = (userId: string) => deps.terminalService.list(userId)
+  const spawn = async (
+    userId: string,
+    sessionId: string,
+    command: string,
+    options?: { env?: Record<string, string | undefined> },
+  ) => {
+    const terminal = await deps.terminalService.spawnCommand(userId, {
+      sessionId,
+      command,
+      env: options?.env,
+    })
+    recordTerminalWork(deps.work, { owner: { userId, sessionId }, label: command, terminal })
+    return terminal
+  }
   return createOwnedAgentRoutes(
     {
-      session: (...args) => deps.chatService.getSession(...args),
+      session,
       cwd: (...args) => deps.chatService.resolveSessionCwd(...args),
-      terminals: (...args) => deps.terminalService.list(...args),
-      spawn: async (userId, sessionId, command) => {
-        const terminal = await deps.terminalService.spawnCommand(userId, { sessionId, command })
-        recordTerminalWork(deps.work, {
-          owner: { userId, sessionId },
-          label: command,
-          terminal,
-        })
-        return terminal
-      },
+      terminals,
+      spawn,
       reportError: (...[error]) =>
         deps.logger.warn({ event: 'external_agents.identity_save_failed', error: String(error) }),
       remember: (userId, id, key) =>
@@ -33,6 +45,32 @@ export function ownedAgentRoutes(
     },
     deps.externalAgents,
   )
+    .route(
+      '/',
+      createOwnedScreenRoutes(
+        {
+          session,
+          terminals,
+          screen: async (userId, terminalId) =>
+            (await deps.terminalService.get(userId, terminalId)?.screen()) ?? null,
+          write: (...args) => deps.terminalService.writeUserInput(...args),
+        },
+        { agents: deps.externalAgents },
+      ),
+    )
+    .route(
+      '/',
+      createAgentAccountRoutes(
+        {
+          session,
+          terminals,
+          spawn,
+          close: (...args) => deps.terminalService.close(...args),
+          run: runAgentProgram,
+        },
+        deps.externalAgents,
+      ),
+    )
     .route(
       '/',
       createLinkAgentRoutes({

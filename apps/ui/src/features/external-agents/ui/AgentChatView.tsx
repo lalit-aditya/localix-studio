@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { MAX_TRANSCRIPT_EVENTS } from '@localixai/api/external-agent-contracts'
+import { Button } from '@localixai/kit/button'
 import { EmptyHint } from '@localixai/kit/empty-hint'
+import { WorkbenchNoticeBar } from '@localixai/kit/workbench-notice-bar'
 import { errorMessage } from '@localixai/mini-app-sdk/ui/utilities'
 import type { WorkItem } from '@/shared/lib/workItem'
-import { backendClient } from '@/shared/api/client'
 import { terminal as terminalBus } from '@/shared/lib/terminalBus'
+import { openExternal } from '@/shared/lib/openExternal'
 import { toast } from '@/shared/lib/notify'
 import { useAutoScroll } from '@/shared/hooks/useAutoScroll'
 import { useChatStore } from '@/entities/chat/model/store'
@@ -14,20 +16,29 @@ import { TranscriptView } from '@/entities/chat/ui/TranscriptView'
 import { externalAgentsApi } from '../api'
 import { externalSessionMessages } from '../model/openSession'
 import { agentChatState, type PendingMessage } from '../model/agentChatState'
+import { useAgentTerminal } from '../model/useAgentTerminal'
+import { useHistoryStream } from '../model/useHistoryStream'
 import { AgentChatPanel } from './AgentChatPanel'
+import { AgentPromptCard } from './AgentPromptCard'
+import { AgentAccountBar } from './AgentAccountBar'
 
-/** How often the agent's own history is read again while its chat view is open. */
-const LIVE_REFRESH_MS = 1000
+/**
+ * How often the agent's own history is read again while its chat view is open: soon when nothing
+ * says it changed, rarely when its writes are pushed (`useHistoryStream`) and the timer is only a
+ * backstop. A read is up to the transcript's last events, so it is not repeated every second.
+ */
+const LIVE_REFRESH_MS = 2000
+const PUSHED_REFRESH_MS = 15_000
 /** A link key saved before the agent's own session id is known (`live/store.ts`). */
 const PENDING_MARK = 'pending-terminal-'
 
 /**
  * A linked coding agent shown as a chat. Its turns come from the agent's own session history,
- * read again every moment while open; a message is typed into its terminal, then Enter.
+ * read again every moment while open; a message is typed into its terminal, then Enter. What the
+ * terminal asks besides (folder trust, a permission, a sign-in) is answered here too.
  */
 export default function AgentChatView({ item, focused }: { item: WorkItem; focused: boolean }) {
   const sessionId = typeof item.payload?.sessionId === 'string' ? item.payload.sessionId : ''
-  const terminalId = typeof item.payload?.terminalId === 'string' ? item.payload.terminalId : ''
   const providerName =
     typeof item.payload?.providerName === 'string' ? item.payload.providerName : item.title
   const key = useChatStore(
@@ -35,50 +46,124 @@ export default function AgentChatView({ item, focused }: { item: WorkItem; focus
   )
   // Until Localix has identified the agent's own session, there is no history to read yet.
   const readable = key && !key.includes(PENDING_MARK) ? key : null
+  const pushed = useRef(false)
   const live = useSWR(
     readable ? ['external-agent:live', readable] : null,
     () => externalAgentsApi.items(readable ?? '', MAX_TRANSCRIPT_EVENTS, true),
-    { refreshInterval: LIVE_REFRESH_MS, keepPreviousData: true },
+    {
+      refreshInterval: () => (pushed.current ? PUSHED_REFRESH_MS : LIVE_REFRESH_MS),
+      keepPreviousData: true,
+    },
   )
+  const streaming = useHistoryStream(Boolean(readable), () => void live.mutate())
+  useEffect(() => {
+    pushed.current = streaming
+  }, [streaming])
   const history = live.data ? externalSessionMessages(live.data) : []
   // What was sent and the agent's history does not show yet: on screen the moment it is sent.
   const [pending, setPending] = useState<PendingMessage[]>([])
   const { messages, working, settled } = agentChatState(history, pending)
   const scroll = useAutoScroll<HTMLDivElement>(`agent-chat:${sessionId}`, focused)
+  const agent = useAgentTerminal(sessionId)
 
+  const failed = (title: string) => (cause: unknown) => {
+    toast.error(title, { description: errorMessage(cause, '') || undefined })
+  }
   const send = async (text: string) => {
     const sent = { id: `agent-chat:pending:${Date.now()}`, text }
     // Those the history already shows are dropped as the next one is added.
     setPending((current) => [...current.filter((m) => !settled.includes(m.id)), sent])
     try {
-      // The text, then Enter on its own: a single write ending in a newline reads as a paste
-      // to a terminal app, which keeps the newline instead of submitting.
-      await backendClient.writeTerminalInput(terminalId, text)
-      await backendClient.writeTerminalInput(terminalId, '\r')
+      await externalAgentsApi.input(sessionId, text)
+      // A message answering a question (a sign-in code) is not a turn of the conversation.
+      if (agent.prompt) setPending((current) => current.filter((m) => m.id !== sent.id))
     } catch (cause) {
       setPending((current) => current.filter((message) => message.id !== sent.id))
-      toast.error(`Could not reach ${providerName}`, {
-        description: errorMessage(
-          cause,
-          'Its terminal has ended. Reopen the chat to start it again.',
-        ),
-      })
+      failed(`Could not reach ${providerName}`)(cause)
       throw cause
+    } finally {
+      void agent.refreshScreen()
     }
   }
+  const start = () =>
+    externalAgentsApi
+      .openOwned(sessionId)
+      .then(() => agent.refreshScreen())
+      .catch(failed(`Could not start ${providerName}`))
+  const showTerminal = () =>
+    externalAgentsApi
+      .openOwned(sessionId)
+      .then((opened) => terminalBus.openOwned(sessionId, opened.terminalId, providerName))
+      .catch(failed(`Could not open ${providerName}`))
+  const press = (keys: Parameters<typeof externalAgentsApi.keys>[1]) =>
+    externalAgentsApi
+      .keys(sessionId, keys)
+      .then(() => void agent.refreshScreen())
+      .catch(failed(`Could not answer ${providerName}`))
 
+  const prompt = agent.prompt
   return (
     <AgentChatPanel
       providerName={providerName}
       onSend={send}
-      onShowTerminal={() => terminalBus.openOwned(sessionId, terminalId, providerName)}
+      onShowTerminal={() => void showTerminal()}
+      held={
+        prompt?.kind === 'choice'
+          ? `Answer ${providerName}’s question above first: Enter there picks the highlighted answer.`
+          : undefined
+      }
+      notice={
+        agent.running === false ? (
+          <WorkbenchNoticeBar
+            role="status"
+            title={`${providerName} is not running`}
+            description="It exited, or was stopped to sign in or out. Start it to continue this conversation."
+            actions={
+              <Button size="sm" variant="mono" onClick={() => void start()}>
+                Start {providerName}
+              </Button>
+            }
+          />
+        ) : undefined
+      }
+      prompt={
+        prompt ? (
+          <AgentPromptCard
+            providerName={providerName}
+            prompt={prompt}
+            onChoose={(index) => press({ choose: index })}
+            onKeys={(keys) => press({ keys })}
+            onOpenLink={openExternal}
+          />
+        ) : undefined
+      }
+      account={
+        agent.account ? (
+          <AgentAccountBar
+            account={agent.account}
+            onLogin={() =>
+              externalAgentsApi
+                .login(sessionId)
+                .then(() => void agent.refreshScreen())
+                .catch(failed('Could not start the sign-in'))
+            }
+            onLogout={() =>
+              externalAgentsApi
+                .logout(sessionId)
+                .then((account) => void agent.setAccount(account))
+                .then(() => void agent.refreshScreen())
+                .catch(failed('Could not sign out'))
+            }
+          />
+        ) : undefined
+      }
       transcript={
         <TranscriptView
           messages={messages}
           sessionId={sessionId}
           isFocused={focused}
           scroll={scroll}
-          isGenerating={working}
+          isGenerating={working && agent.running !== false && !prompt}
           phaseLabel={`${providerName} is working…`}
           foreignTools
           empty={
