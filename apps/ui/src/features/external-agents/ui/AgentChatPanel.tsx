@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
-import { SendHorizontal, SquareTerminal } from 'lucide-react'
+import { SendHorizontal, Square, SquareTerminal } from 'lucide-react'
 import { Button } from '@localixai/kit/button'
 import { Textarea } from '@localixai/kit/textarea'
 
@@ -24,12 +24,17 @@ export function AgentChatPanel(props: {
   held?: string
   /** Beside the actions: who the agent is signed in as. */
   account?: ReactNode
+  /** Beside Send: how the agent may act (its permission mode). */
+  options?: ReactNode
+  /** The agent is answering: Stop takes Send's place. */
+  busy?: boolean
+  onStop?: () => Promise<void>
 }) {
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const send = async () => {
     const text = draft.trim()
-    if (!text || sending || props.held) return
+    if (!text || sending || props.held || props.busy) return
     setSending(true)
     try {
       await props.onSend(text)
@@ -67,15 +72,25 @@ export function AgentChatPanel(props: {
               </Button>
               {props.account}
             </div>
-            <Button
-              size="sm"
-              variant="mono"
-              disabled={!draft.trim() || sending || Boolean(props.held)}
-              onClick={() => void send()}
-            >
-              <SendHorizontal data-icon="inline-start" />
-              Send
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              {props.options}
+              {props.busy && props.onStop ? (
+                <Button size="sm" variant="mono" onClick={() => void props.onStop?.()}>
+                  <Square data-icon="inline-start" />
+                  Stop
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="mono"
+                  disabled={!draft.trim() || sending || Boolean(props.held)}
+                  onClick={() => void send()}
+                >
+                  <SendHorizontal data-icon="inline-start" />
+                  Send
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>

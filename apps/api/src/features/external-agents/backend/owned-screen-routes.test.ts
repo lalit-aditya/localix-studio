@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import { Hono } from 'hono'
 import type { HostRouteContext } from '@localixai/mini-app-sdk/backend'
 import { createOwnedScreenRoutes, type OwnedScreenHost } from './owned-screen-routes'
@@ -99,4 +99,85 @@ test('an answer the question does not offer is refused', async () => {
   const { post, writes } = chat()
   expect((await post('/owned-keys', { choose: 5 })).status).toBe(409)
   expect(writes).toEqual([])
+})
+
+describe('a chat whose agent runs headless', () => {
+  function headlessChat(state: { busy: boolean; error?: string } = { busy: false }) {
+    const sent: string[] = []
+    const stopped: string[] = []
+    const headless = {
+      handles: async () => true,
+      send: async (
+        _userId: string,
+        sessionId: string,
+        message: { text: string; origin: string; permissionMode?: string },
+      ) => {
+        sent.push(`${sessionId}:${message.text}:${message.permissionMode ?? 'default'}`)
+      },
+      stop: (sessionId: string) => {
+        stopped.push(sessionId)
+        return true
+      },
+      state: () => state,
+    }
+    const writes: string[] = []
+    const app = new Hono<HostRouteContext>()
+      .use('*', async (c, next) => {
+        c.set('userId', 'user')
+        await next()
+      })
+      .route(
+        '/',
+        createOwnedScreenRoutes(
+          {
+            session: async () => ({ externalAgentProvider: 'claude-code' }),
+            // No agent terminal: none is needed to chat.
+            terminals: () => [],
+            screen: async () => null,
+            write: (_u, _t, data) => {
+              writes.push(data)
+              return true
+            },
+          },
+          { headless: headless as never },
+        ),
+      )
+    const post = (path: string, body: object) =>
+      app.request(path, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: 'our-chat', ...body }),
+      })
+    return { post, sent, stopped, writes }
+  }
+
+  test('a message is a turn of the agent, sent with the permission mode picked, no terminal needed', async () => {
+    const { post, sent, writes } = headlessChat()
+    expect((await post('/owned-input', { text: 'fix it', permissionMode: 'plan' })).status).toBe(
+      200,
+    )
+    expect(sent).toEqual(['our-chat:fix it:plan'])
+    expect(writes).toEqual([])
+  })
+
+  test('the chat reads the agent as ready, answering, or failed with its reason', async () => {
+    expect(await (await headlessChat().post('/owned-screen', {})).json()).toEqual({
+      running: true,
+      headless: true,
+      busy: false,
+      prompt: null,
+      tail: [],
+    })
+    const failed = headlessChat({ busy: false, error: 'Not logged in · Please run /login' })
+    expect(await (await failed.post('/owned-screen', {})).json()).toMatchObject({
+      busy: false,
+      error: 'Not logged in · Please run /login',
+    })
+  })
+
+  test('Stop ends the running turn', async () => {
+    const { post, stopped } = headlessChat({ busy: true })
+    expect((await post('/owned-stop', {})).status).toBe(200)
+    expect(stopped).toEqual(['our-chat'])
+  })
 })

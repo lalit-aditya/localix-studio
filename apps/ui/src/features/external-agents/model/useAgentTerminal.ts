@@ -29,6 +29,9 @@ export function useAgentTerminal(sessionId: string) {
   }, [running, mutate])
   return {
     running,
+    headless: screen.data?.headless ?? false,
+    busy: screen.data?.busy ?? false,
+    error: screen.data?.error,
     prompt: screen.data?.prompt ?? null,
     refreshScreen: () => screen.mutate(),
     account: account.data ?? null,

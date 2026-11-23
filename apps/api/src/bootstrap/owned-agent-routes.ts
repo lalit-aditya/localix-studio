@@ -6,7 +6,10 @@ import { createLinkAgentRoutes } from '../features/external-agents/backend/link-
 import { createOwnedScreenRoutes } from '../features/external-agents/backend/owned-screen-routes'
 import { createAgentAccountRoutes } from '../features/external-agents/backend/agent-account-routes'
 import { agentMcpServers } from './agent-mcp-servers'
-import { runAgentProgram } from './agent-program'
+import { runAgentProgram, spawnAgentTurn } from './agent-program'
+import { createHeadlessTurns } from '../features/external-agents/backend/headless-turns'
+import { createHeadlessChat } from '../features/external-agents/backend/headless-chat'
+import { installedExternalAgents } from '../features/external-agents/installed'
 
 export function ownedAgentRoutes(
   deps: Pick<
@@ -31,19 +34,36 @@ export function ownedAgentRoutes(
     recordTerminalWork(deps.work, { owner: { userId, sessionId }, label: command, terminal })
     return terminal
   }
+  const cwd = (userId: string, sessionId: string) =>
+    deps.chatService.resolveSessionCwd(userId, sessionId)
+  const remember = (userId: string, id: string, key: string) =>
+    deps.chatService.updateSession(userId, id, { externalAgentSessionKey: key })
+  const mcpServers = (_userId: string, sessionId: string, origin: string) =>
+    agentMcpServers(origin, sessionId)
+  // Claude Code is chatted with headless: one `claude -p` turn per message, no terminal.
+  const headless = createHeadlessChat({
+    session,
+    remember,
+    cwd,
+    mcpServers,
+    installed: installedExternalAgents,
+    transcriptExists: async (key) => Boolean(await deps.externalAgents?.nativeSummary(key)),
+    turns: createHeadlessTurns({ spawn: spawnAgentTurn }),
+  })
   return createOwnedAgentRoutes(
     {
       session,
-      cwd: (...args) => deps.chatService.resolveSessionCwd(...args),
+      cwd,
       terminals,
       spawn,
       reportError: (...[error]) =>
         deps.logger.warn({ event: 'external_agents.identity_save_failed', error: String(error) }),
-      remember: (userId, id, key) =>
-        deps.chatService.updateSession(userId, id, { externalAgentSessionKey: key }),
-      mcpServers: (_userId, sessionId, origin) => agentMcpServers(origin, sessionId),
+      remember,
+      mcpServers,
     },
     deps.externalAgents,
+    installedExternalAgents,
+    { headless },
   )
     .route(
       '/',
@@ -55,7 +75,7 @@ export function ownedAgentRoutes(
             (await deps.terminalService.get(userId, terminalId)?.screen()) ?? null,
           write: (...args) => deps.terminalService.writeUserInput(...args),
         },
-        { agents: deps.externalAgents },
+        { agents: deps.externalAgents, headless },
       ),
     )
     .route(

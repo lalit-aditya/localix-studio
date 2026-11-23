@@ -116,3 +116,37 @@ test('while the agent waits on a question, a message is held: its Enter would an
   await act(async () => root.unmount())
   host.remove()
 })
+
+test('while the agent answers, Stop takes Send’s place and ends the turn', async () => {
+  const React = await import('react')
+  const { act } = React
+  const { createRoot } = await import('react-dom/client')
+  const { AgentChatPanel } = await import('./AgentChatPanel')
+  let stops = 0
+  const host = document.createElement('div')
+  document.body.appendChild(host)
+  const root = createRoot(host)
+  await act(async () => {
+    root.render(
+      React.createElement(AgentChatPanel, {
+        providerName: 'Claude Code',
+        transcript: null,
+        busy: true,
+        onStop: async () => {
+          stops++
+        },
+        onSend: async () => {},
+        onShowTerminal: () => {},
+      }),
+    )
+  })
+  const buttons = [...host.querySelectorAll('button')].map((button) => button.textContent)
+  expect(buttons).toContain('Stop')
+  expect(buttons).not.toContain('Send')
+  await act(async () =>
+    [...host.querySelectorAll('button')].find((button) => button.textContent === 'Stop')?.click(),
+  )
+  expect(stops).toBe(1)
+  await act(async () => root.unmount())
+  host.remove()
+})

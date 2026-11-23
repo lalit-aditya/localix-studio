@@ -254,6 +254,21 @@ export const claudeCodeAdapter: ProviderAdapter = {
     'CLAUDE_CODE_SESSION_ID',
     'CLAUDE_PID',
   ],
+  headless: {
+    // `stream-json` for the result record a failed turn is told by. Headless, nothing can answer a
+    // permission prompt, so one that would ask is refused at once rather than left waiting.
+    args: (id, resume, permissionMode) => [
+      '-p',
+      '--output-format',
+      'stream-json',
+      '--verbose',
+      '--permission-prompts',
+      'none',
+      ...(resume ? ['--resume', id] : ['--session-id', id]),
+      ...(permissionMode ? ['--permission-mode', permissionMode] : []),
+    ],
+    permissionModes: ['manual', 'acceptEdits', 'auto', 'plan', 'bypassPermissions'],
+  },
   account: {
     status: ['auth', 'status', '--json'],
     login: ['auth', 'login'],

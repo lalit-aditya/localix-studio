@@ -12,6 +12,7 @@ import { isPendingKey, pendingKeyFor } from './live/store'
 import { detectLaunchKind } from './live/launch-kinds'
 import { linkKeyOf, parseLinkKey } from '../shared/identity'
 import type { AgentSessionsService } from './service'
+import type { HeadlessChat } from './headless-chat'
 
 export interface OwnedSessionHost {
   session(
@@ -49,6 +50,17 @@ export interface McpServerConfig {
 const BOARD_INSTRUCTION =
   'This Localix chat has a task board, reached through the MCP tools of the localix-board server. Keep it current as you work: put multi-part work on it as epics (milestones) and tasks with checklists, take a card before working it, tick its checklist items as they are done, and complete or block it. List the board before you plan or report progress.'
 
+/** Claude Code's arguments connecting it to the chat's MCP servers, as separate argv words. */
+export function mcpArgs(servers: Record<string, McpServerConfig>): string[] {
+  if (Object.keys(servers).length === 0) return []
+  return [
+    '--mcp-config',
+    JSON.stringify({ mcpServers: servers }),
+    '--append-system-prompt',
+    BOARD_INSTRUCTION,
+  ]
+}
+
 /** Claude Code reads MCP servers from `--mcp-config`; other agents start unchanged. */
 function withMcpServers(
   provider: string,
@@ -62,10 +74,8 @@ function withMcpServers(
   if (program < 0) return command
   return [
     ...words.slice(0, program + 1),
-    '--mcp-config',
-    shellQuote(JSON.stringify({ mcpServers: servers })),
-    '--append-system-prompt',
-    shellQuote(BOARD_INSTRUCTION),
+    // Flags bare, values quoted: `--mcp-config '{…}'`.
+    ...mcpArgs(servers).map((word, at) => (at % 2 ? shellQuote(word) : word)),
     ...words.slice(program + 1),
   ].join(' ')
 }
@@ -93,6 +103,7 @@ export function createOwnedAgentRoutes(
   host: OwnedSessionHost,
   agents?: AgentSessionsService,
   installed = installedExternalAgents,
+  options: { headless?: Pick<HeadlessChat, 'handles' | 'prepare'> } = {},
 ) {
   const opening = new Map<string, Promise<{ terminalId: string; providerName: string }>>()
   const open = async (userId: string, sessionId: string, origin: string) => {
@@ -201,10 +212,19 @@ export function createOwnedAgentRoutes(
   }
   const app = new Hono<HostRouteContext>().post(
     '/open-owned',
-    zValidator('json', z.object({ sessionId: z.string().min(1).max(200) })),
+    zValidator(
+      'json',
+      z.object({ sessionId: z.string().min(1).max(200), terminal: z.boolean().optional() }),
+    ),
     async (c) => {
       const userId = c.get('userId')
-      const { sessionId } = c.req.valid('json')
+      const { sessionId, terminal } = c.req.valid('json')
+      // A headless chat needs no terminal to be chatted with: its terminal opens only when asked.
+      const headless = options.headless
+      if (!terminal && headless && (await headless.handles(userId, sessionId))) {
+        const { providerName } = await headless.prepare(userId, sessionId)
+        return c.json({ terminalId: null, providerName })
+      }
       const key = JSON.stringify([userId, sessionId])
       let pending = opening.get(key)
       if (!pending) {

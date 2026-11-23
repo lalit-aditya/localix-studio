@@ -145,6 +145,16 @@ export interface ProviderAdapter {
    * so they are removed from its terminal.
    */
   readonly parentSessionEnv?: readonly string[]
+  /**
+   * How one chat turn runs headless: the arguments after the executable, the message going to its
+   * stdin. `resume` says the session already has a transcript to continue. Absent: the agent is
+   * chatted with through its terminal.
+   */
+  readonly headless?: {
+    readonly args: (nativeSessionId: string, resume: boolean, permissionMode?: string) => string[]
+    /** Permission modes a turn may run in; the agent's own settings decide when none is given. */
+    readonly permissionModes: readonly string[]
+  }
   /** The agent's own sign-in commands (arguments to its executable), when Localix can drive them. */
   readonly account?: {
     readonly status: readonly string[]

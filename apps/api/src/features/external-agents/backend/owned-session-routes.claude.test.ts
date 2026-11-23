@@ -135,3 +135,50 @@ test('a resumed Claude Code chat gets its MCP servers on the claude command, not
     await agents.shutdown()
   }
 })
+
+test('opening a headless Claude Code chat starts no terminal; asking for its terminal does', async () => {
+  const prepared: string[] = []
+  const spawns: string[] = []
+  const app = new Hono<HostRouteContext>()
+    .use('*', async (c, next) => {
+      c.set('userId', 'user')
+      await next()
+    })
+    .route(
+      '/',
+      createOwnedAgentRoutes(
+        {
+          session: async () => ({ externalAgentProvider: 'claude-code' }),
+          cwd: async () => '/work',
+          terminals: () => [],
+          spawn: async (_u, _s, command) => {
+            spawns.push(command)
+            return { id: 'pty' }
+          },
+          remember: async () => {},
+        },
+        undefined,
+        async () => [{ id: 'claude-code', name: 'Claude Code', command: 'claude' }],
+        {
+          headless: {
+            handles: async () => true,
+            prepare: async (_userId, sessionId) => {
+              prepared.push(sessionId)
+              return { providerName: 'Claude Code' }
+            },
+          },
+        },
+      ),
+    )
+  const open = (body: object) =>
+    app.request('/open-owned', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: 'our-chat', ...body }),
+    })
+  expect(await (await open({})).json()).toEqual({ terminalId: null, providerName: 'Claude Code' })
+  expect(prepared).toEqual(['our-chat'])
+  expect(spawns).toEqual([])
+  expect((await (await open({ terminal: true })).json()).terminalId).toBe('pty')
+  expect(spawns).toHaveLength(1)
+})

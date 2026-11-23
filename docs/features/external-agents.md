@@ -55,24 +55,30 @@ as a tab beside the chat when its full screen is wanted. Linking keeps the same 
 draft; it creates no second chat and imports no external transcript. The Localix composer remains
 available in the chat's tab.
 
-Claude Code starts under a session id Localix chooses (`--session-id`), so the chat knows its
-conversation from launch, before the first message is written. Variables a parent Claude Code
-session sets (`CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION` and the like) are removed from its terminal:
-inherited, they would make it a child session that saves no transcript, and the chat would show no
-reply.
+Claude Code is chatted with headless, the way a wrapper around its CLI would: opening the chat
+starts nothing, and each message runs one turn of `claude -p --output-format stream-json`, the
+message on its standard input. The chat holds the conversation's id from the moment it opens, so the
+first turn starts it (`--session-id`) and every later one continues it (`--resume`). No terminal
+stands between a message and Claude: nothing it would draw on a screen (folder trust, a menu) can
+take a message for an answer. Its replies read from its transcript as before.
 
-Whatever the agent's terminal asks besides the conversation shows above the message box as **Claude
-Code is asking**: folder trust, a tool permission, a login method or code. Each answer is a button,
-the one Enter would give is marked, and **Cancel (Esc)** and the arrow and Enter keys are beside
-them. While a question is open the message box holds the message, because its Enter would answer the
-question with the highlighted answer (Claude Code's folder trust highlights **No, exit**). A sign-in
-link opens with **Open sign-in page**; a code it asks for is typed in the message box. When the
-agent exits, the chat says so and **Start Claude Code** starts it again in the same conversation.
+While Claude answers, **Stop** takes **Send**'s place and ends the turn; what it wrote so far stays
+in the conversation. A message sent while it answers is refused rather than queued. A turn that
+fails says why above the conversation, in Claude's own words; a sign-in failure offers **Log in**.
+Beside **Send**, the permission mode decides what Claude may do without asking: **Default** (its own
+settings), **Plan**, **Accept edits**, **Auto** or **Bypass permissions**, remembered in this
+browser. Headless, nothing can answer a permission prompt, so an action that would ask is refused
+and Claude is told so. **Show terminal** opens Claude's full terminal on the same conversation.
+
+Variables a parent Claude Code session sets (`CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION` and the like)
+are removed from every turn: inherited, they would make it a child session that saves no transcript,
+and the chat would show no reply.
 
 Beside **Show terminal** the chat shows who Claude Code is signed in as (`claude auth status`).
-**Log out** stops the agent and runs `claude auth logout`; **Log in** stops it and runs
-`claude auth login` in the chat's terminal, whose questions show in the chat as above. Start Claude
-Code again afterwards to continue.
+**Log out** runs `claude auth logout`. **Log in** runs `claude auth login` in the chat's terminal;
+its questions (the login method, the sign-in link, the code it asks for) show above the message box
+as **Claude Code is asking**, each answer a button, with **Open sign-in page** for the link and the
+message box for the code.
 
 Claude Code starts connected to the chat's task board over MCP when the Kanban board mini app is
 installed: Localix passes the board's endpoint for that chat in `--mcp-config` (as the

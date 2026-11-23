@@ -20,8 +20,14 @@ export const externalAgentsApi = {
       await client.rpc['external-agents']['attach-native'].$post({ json: { key, projectId } }),
     )
   },
-  async openOwned(sessionId: string) {
-    return unwrap(await client.rpc['external-agents']['open-owned'].$post({ json: { sessionId } }))
+  /**
+   * Ready the chat's agent. A headless agent (Claude Code) starts nothing and answers no terminal
+   * unless `terminal` asks for one; an agent chatted with in its terminal starts it.
+   */
+  async openOwned(sessionId: string, terminal?: boolean) {
+    return unwrap(
+      await client.rpc['external-agents']['open-owned'].$post({ json: { sessionId, terminal } }),
+    )
   },
   /** What the chat's agent shows besides its conversation: a question it waits on, if any. */
   async screen(sessionId: string): Promise<AgentScreen> {
@@ -29,11 +35,17 @@ export const externalAgentsApi = {
       await client.rpc['external-agents']['owned-screen'].$post({ json: { sessionId } }),
     )
   },
-  /** Type a message into the chat's agent and submit it. */
-  async input(sessionId: string, text: string) {
+  /** Send a message to the chat's agent: a headless turn, or typed into its terminal. */
+  async input(sessionId: string, text: string, permissionMode?: string) {
     return unwrap(
-      await client.rpc['external-agents']['owned-input'].$post({ json: { sessionId, text } }),
+      await client.rpc['external-agents']['owned-input'].$post({
+        json: { sessionId, text, permissionMode },
+      }),
     )
+  },
+  /** Stop what the chat's agent is doing. */
+  async stop(sessionId: string) {
+    return unwrap(await client.rpc['external-agents']['owned-stop'].$post({ json: { sessionId } }))
   },
   /** Press keys in the chat's agent, or pick an answer of its open question. */
   async keys(sessionId: string, press: { keys?: AgentKey[]; choose?: number }) {

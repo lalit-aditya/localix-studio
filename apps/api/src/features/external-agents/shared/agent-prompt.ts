@@ -26,6 +26,12 @@ export interface AgentScreen {
   prompt: AgentPrompt | null
   /** The bottom of its screen, for whatever it shows that is not a question read here. */
   tail: string[]
+  /** The agent runs headless: each message is a turn, and it needs no terminal to be chatted with. */
+  headless?: boolean
+  /** A headless turn is running. */
+  busy?: boolean
+  /** Why the last headless turn failed, in the agent's words where it gave them. */
+  error?: string
 }
 
 /** Keys a chat can press in its agent's terminal. */

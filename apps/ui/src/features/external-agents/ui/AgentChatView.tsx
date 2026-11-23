@@ -21,6 +21,7 @@ import { useHistoryStream } from '../model/useHistoryStream'
 import { AgentChatPanel } from './AgentChatPanel'
 import { AgentPromptCard } from './AgentPromptCard'
 import { AgentAccountBar } from './AgentAccountBar'
+import { PermissionModePicker, usePermissionMode } from './PermissionModePicker'
 
 /**
  * How often the agent's own history is read again while its chat view is open: soon when nothing
@@ -65,6 +66,12 @@ export default function AgentChatView({ item, focused }: { item: WorkItem; focus
   const { messages, working, settled } = agentChatState(history, pending)
   const scroll = useAutoScroll<HTMLDivElement>(`agent-chat:${sessionId}`, focused)
   const agent = useAgentTerminal(sessionId)
+  const [permissionMode, setPermissionMode] = usePermissionMode()
+  // A turn that just ended has written its last words: read them now, not at the next beat.
+  const { mutate: reread } = live
+  useEffect(() => {
+    if (!agent.busy) void reread()
+  }, [agent.busy, reread])
 
   const failed = (title: string) => (cause: unknown) => {
     toast.error(title, { description: errorMessage(cause, '') || undefined })
@@ -74,7 +81,7 @@ export default function AgentChatView({ item, focused }: { item: WorkItem; focus
     // Those the history already shows are dropped as the next one is added.
     setPending((current) => [...current.filter((m) => !settled.includes(m.id)), sent])
     try {
-      await externalAgentsApi.input(sessionId, text)
+      await externalAgentsApi.input(sessionId, text, permissionMode || undefined)
       // A message answering a question (a sign-in code) is not a turn of the conversation.
       if (agent.prompt) setPending((current) => current.filter((m) => m.id !== sent.id))
     } catch (cause) {
@@ -92,8 +99,10 @@ export default function AgentChatView({ item, focused }: { item: WorkItem; focus
       .catch(failed(`Could not start ${providerName}`))
   const showTerminal = () =>
     externalAgentsApi
-      .openOwned(sessionId)
-      .then((opened) => terminalBus.openOwned(sessionId, opened.terminalId, providerName))
+      .openOwned(sessionId, true)
+      .then((opened) => {
+        if (opened.terminalId) terminalBus.openOwned(sessionId, opened.terminalId, providerName)
+      })
       .catch(failed(`Could not open ${providerName}`))
   const press = (keys: Parameters<typeof externalAgentsApi.keys>[1]) =>
     externalAgentsApi
@@ -102,10 +111,27 @@ export default function AgentChatView({ item, focused }: { item: WorkItem; focus
       .catch(failed(`Could not answer ${providerName}`))
 
   const prompt = agent.prompt
+  const login = () =>
+    externalAgentsApi
+      .login(sessionId)
+      .then(() => void agent.refreshScreen())
+      .catch(failed('Could not start the sign-in'))
   return (
     <AgentChatPanel
       providerName={providerName}
       onSend={send}
+      busy={agent.busy}
+      onStop={() =>
+        externalAgentsApi
+          .stop(sessionId)
+          .then(() => void agent.refreshScreen())
+          .catch(failed(`Could not stop ${providerName}`))
+      }
+      options={
+        agent.headless ? (
+          <PermissionModePicker value={permissionMode} onChange={setPermissionMode} />
+        ) : undefined
+      }
       onShowTerminal={() => void showTerminal()}
       held={
         prompt?.kind === 'choice'
@@ -113,7 +139,21 @@ export default function AgentChatView({ item, focused }: { item: WorkItem; focus
           : undefined
       }
       notice={
-        agent.running === false ? (
+        agent.headless && agent.error && !agent.busy ? (
+          <WorkbenchNoticeBar
+            role="alert"
+            tone="error"
+            title={`${providerName} could not answer`}
+            description={agent.error}
+            actions={
+              /log ?in/i.test(agent.error) ? (
+                <Button size="sm" variant="mono" onClick={() => void login()}>
+                  Log in
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : agent.running === false ? (
           <WorkbenchNoticeBar
             role="status"
             title={`${providerName} is not running`}
@@ -141,12 +181,7 @@ export default function AgentChatView({ item, focused }: { item: WorkItem; focus
         agent.account ? (
           <AgentAccountBar
             account={agent.account}
-            onLogin={() =>
-              externalAgentsApi
-                .login(sessionId)
-                .then(() => void agent.refreshScreen())
-                .catch(failed('Could not start the sign-in'))
-            }
+            onLogin={login}
             onLogout={() =>
               externalAgentsApi
                 .logout(sessionId)
@@ -163,7 +198,7 @@ export default function AgentChatView({ item, focused }: { item: WorkItem; focus
           sessionId={sessionId}
           isFocused={focused}
           scroll={scroll}
-          isGenerating={working && agent.running !== false && !prompt}
+          isGenerating={agent.headless ? agent.busy : working && agent.running !== false && !prompt}
           phaseLabel={`${providerName} is working…`}
           foreignTools
           empty={

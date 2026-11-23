@@ -9,6 +9,7 @@ import { AGENT_KEYS, type AgentScreen } from '../shared/agent-prompt'
 import { screenPrompt } from './live/screen-prompt'
 import { agentTerminalOf, type OwnedSessionHost } from './owned-session-routes'
 import type { AgentSessionsService } from './service'
+import type { HeadlessChat } from './headless-chat'
 
 /**
  * A coding agent's terminal as its chat uses it: the question it waits on, a message typed and
@@ -39,8 +40,12 @@ export function createOwnedScreenRoutes(
   options: {
     agents?: AgentSessionsService
     pause?: (ms: number) => Promise<void>
+    /** Chats whose agent runs headless: a message is a turn, and no terminal is needed. */
+    headless?: Pick<HeadlessChat, 'handles' | 'send' | 'stop' | 'state'>
   } = {},
 ) {
+  const headless = async (userId: string, sessionId: string) =>
+    (await options.headless?.handles(userId, sessionId)) ? options.headless : undefined
   const pause = options.pause ?? ((ms: number) => new Promise((done) => setTimeout(done, ms)))
   const agentTerminal = async (userId: string, sessionId: string) => {
     const provider = (await host.session(userId, sessionId)).externalAgentProvider
@@ -61,25 +66,46 @@ export function createOwnedScreenRoutes(
   const app = new Hono<HostRouteContext>()
     .post('/owned-screen', zValidator('json', sessionBody), async (c) => {
       const userId = c.get('userId')
-      const terminal = await agentTerminal(userId, c.req.valid('json').sessionId)
+      const { sessionId } = c.req.valid('json')
+      const terminal = await agentTerminal(userId, sessionId)
       const screen = terminal ? await host.screen(userId, terminal.id) : null
-      if (!terminal || !screen)
-        return c.json<AgentScreen>({ running: false, prompt: null, tail: [] })
-      const lines = screen.text.split('\n')
+      const lines = screen?.text.split('\n') ?? []
       while (lines.length && !lines.at(-1)?.trim()) lines.pop()
-      const result: AgentScreen = {
-        running: true,
-        prompt: screenPrompt(screen.text, screen.cols),
+      const read = {
+        prompt: screen ? screenPrompt(screen.text, screen.cols) : null,
         tail: lines.slice(-TAIL_LINES),
       }
-      return c.json(result)
+      const turns = await headless(userId, sessionId)
+      // Headless, the agent is always ready to chat; a terminal it has is its sign-in, whose
+      // questions still show here.
+      if (turns)
+        return c.json<AgentScreen>({
+          running: true,
+          headless: true,
+          ...turns.state(sessionId),
+          ...read,
+        })
+      if (!screen) return c.json<AgentScreen>({ running: false, prompt: null, tail: [] })
+      return c.json<AgentScreen>({ running: true, ...read })
     })
     .post(
       '/owned-input',
-      zValidator('json', sessionBody.extend({ text: z.string().min(1).max(100_000) })),
+      zValidator(
+        'json',
+        sessionBody.extend({
+          text: z.string().min(1).max(100_000),
+          permissionMode: z.string().max(40).optional(),
+        }),
+      ),
       async (c) => {
         const userId = c.get('userId')
-        const { sessionId, text } = c.req.valid('json')
+        const { sessionId, text, permissionMode } = c.req.valid('json')
+        const turns = await headless(userId, sessionId)
+        if (turns) {
+          const origin = new URL(c.req.url).origin
+          await turns.send(userId, sessionId, { text, origin, permissionMode })
+          return c.json({ ok: true })
+        }
         const terminal = await running(userId, sessionId)
         write(userId, terminal.id, text)
         await pause(text.startsWith('/') ? COMMAND_PAUSE_MS : MESSAGE_PAUSE_MS)
@@ -115,6 +141,16 @@ export function createOwnedScreenRoutes(
         return c.json({ ok: true })
       },
     )
+    // Stop what the agent is doing: its headless turn ends; in a terminal, Esc interrupts it.
+    .post('/owned-stop', zValidator('json', sessionBody), async (c) => {
+      const userId = c.get('userId')
+      const { sessionId } = c.req.valid('json')
+      const turns = await headless(userId, sessionId)
+      if (turns) return c.json({ ok: turns.stop(sessionId) })
+      const terminal = await running(userId, sessionId)
+      write(userId, terminal.id, encodeKeys(['escape']))
+      return c.json({ ok: true })
+    })
   app.onError(defaultErrorHandler)
   return app
 }
